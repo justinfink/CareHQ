@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Brand */
+  --color-brand-primary: #0A7B6E;
+  --color-brand-primary-light: #E6F5F3;
+  --color-brand-primary-dark: #065C52;
+  --color-brand-accent: #F0A830;
+  --color-brand-accent-light: #FEF3DC;
+
+  /* Backgrounds */
+  --color-surface-base: #F9F7F4;
+  --color-surface-default: #FFFFFF;
+  --color-surface-alt: #F4F2EF;
+
+  /* Text */
+  --color-text-primary: #1A1F2E;
+  --color-text-secondary: #5C6270;
+  --color-text-tertiary: #9EA3AD;
+  --color-text-brand: #0A7B6E;
+
+  /* Borders */
+  --color-border-default: #E8E5E0;
+  --color-border-subtle: #F0EDE8;
+  --color-border-focus: #0A7B6E;
+
+  /* Status */
+  --color-status-alert: #DC2626;
+  --color-status-alert-bg: #FEF2F2;
+  --color-status-warning: #D97706;
+  --color-status-warning-bg: #FFFBEB;
+  --color-status-ok: #16A34A;
+  --color-status-ok-bg: #F0FDF4;
+  --color-status-info: #2563EB;
+  --color-status-info-bg: #EFF6FF;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(26,31,46,0.06), 0 1px 2px rgba(26,31,46,0.04);
+  --shadow-md: 0 4px 12px rgba(26,31,46,0.08), 0 2px 4px rgba(26,31,46,0.04);
+  --shadow-lg: 0 10px 30px rgba(26,31,46,0.10), 0 4px 8px rgba(26,31,46,0.06);
+  --shadow-brand: 0 4px 14px rgba(10,123,110,0.20);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  background-color: var(--color-surface-base);
+  color: var(--color-text-primary);
+  line-height: 1.5;
+}
+
+#root {
+  min-height: 100svh;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-default);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-tertiary);
+}
+
+@keyframes waveform-1 { 0%, 100% { height: 4px; } 50% { height: 24px; } }
+@keyframes waveform-2 { 0%, 100% { height: 8px; } 50% { height: 20px; } }
+@keyframes waveform-3 { 0%, 100% { height: 6px; } 50% { height: 24px; } }
+@keyframes waveform-4 { 0%, 100% { height: 4px; } 50% { height: 16px; } }
+@keyframes waveform-5 { 0%, 100% { height: 10px; } 50% { height: 22px; } }
+
+@keyframes pulse-record {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
