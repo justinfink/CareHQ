@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { format, startOfWeek, addDays, isSameDay, isToday, parseISO } from 'date-fns'
+import { format, startOfWeek, addDays, isToday, parseISO } from 'date-fns'
 import { motion } from 'framer-motion'
 import type { CalendarEvent } from '../../types/calendar'
 

@@ -82,9 +82,6 @@ export default function PermissionsPanel() {
               <div className="space-y-3">
                 {permissions.map((perm) => {
                   const member = careTeam.find((m) => m.id === perm.memberId)
-                  const config = accessLevelConfig[perm.accessLevel]
-                  const Icon = config.icon
-
                   return (
                     <div key={perm.memberId} className="flex items-center justify-between p-3 rounded-[10px] bg-[var(--color-surface-alt)]/60">
                       <div className="flex items-center gap-3 min-w-0">

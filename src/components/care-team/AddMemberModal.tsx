@@ -61,7 +61,7 @@ export default function AddMemberModal({ open, onClose }: AddMemberModalProps) {
           <label className="text-sm font-medium text-[var(--color-text-secondary)]">Type</label>
           <select
             value={type}
-            onChange={(e) => setType(e.target.value)}
+            onChange={(e) => setType(e.target.value as TeamMemberType)}
             className="w-full bg-white border border-[var(--color-border-default)] rounded-[10px] px-3.5 py-3 text-base text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-border-focus)] cursor-pointer"
           >
             <option value="professional">Professional</option>

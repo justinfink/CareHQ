@@ -8,7 +8,6 @@ import {
   addDays,
   isSameMonth,
   isToday,
-  isSameDay,
   parseISO,
 } from 'date-fns'
 import type { CalendarEvent } from '../../types/calendar'
@@ -18,13 +17,6 @@ interface MonthViewProps {
   events: CalendarEvent[]
   onEventClick: (event: CalendarEvent) => void
   onDayClick: (date: Date) => void
-}
-
-const typeColors: Record<string, string> = {
-  shift: 'bg-[var(--color-brand-primary)]',
-  appointment: 'bg-[var(--color-status-info)]',
-  task: 'bg-[var(--color-text-secondary)]',
-  reminder: 'bg-[var(--color-status-alert)]',
 }
 
 export default function MonthView({ currentDate, events, onEventClick, onDayClick }: MonthViewProps) {

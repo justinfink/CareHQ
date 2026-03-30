@@ -34,3 +34,5 @@ ios/
 
 # Claude
 .claude/
+
+.vercel
