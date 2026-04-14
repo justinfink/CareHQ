@@ -21,10 +21,10 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="px-5 py-6 flex items-center gap-2.5">
         <div className="w-8 h-8 rounded-[8px] bg-[var(--color-brand-primary)] flex items-center justify-center">
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <path d="M9 1.5C4.86 1.5 1.5 4.86 1.5 9s3.36 7.5 7.5 7.5 7.5-3.36 7.5-7.5S13.14 1.5 9 1.5zm0 13.5c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6z" fill="white" fillOpacity="0.4"/>
-            <path d="M9 4.5a4.5 4.5 0 100 9 4.5 4.5 0 000-9zm0 7.5a3 3 0 110-6 3 3 0 010 6z" fill="white"/>
-            <path d="M9 6.75a2.25 2.25 0 100 4.5 2.25 2.25 0 000-4.5z" fill="white"/>
+          <svg width="18" height="18" viewBox="50 45 100 115" fill="none">
+            <polygon points="100,50 150,95 50,95" fill="white"/>
+            <rect x="60" y="95" width="80" height="60" fill="white"/>
+            <rect x="88" y="115" width="24" height="40" rx="3" fill="#0A7B6E"/>
           </svg>
         </div>
         <span className="text-lg font-semibold text-[var(--color-brand-primary)]">CareHQ</span>

@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CareHQ — Care coordination for families</title>
+  <meta name="description" content="CareHQ brings your entire care team — family, aides, nurses, doctors — into one shared workspace. Schedules, logs, meds, and updates, always in sync." />
+  <meta property="og:title" content="CareHQ — Finally, one place for all of it." />
+  <meta property="og:description" content="Care coordination for families managing care at home." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://mycare-hq.com" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="canonical" href="https://mycare-hq.com" />
+  <link rel="icon" href="data:image/svg+xml,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><rect width='200' height='200' rx='32' fill='%230A7B6E'/><polygon points='100,50 150,95 50,95' fill='white'/><rect x='60' y='95' width='80' height='60' fill='white'/><rect x='88' y='115' width='24' height='40' rx='3' fill='%230A7B6E'/></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ─── APP BANNER ─── -->
+  <div class="app-banner" id="app-banner">
+    <div class="app-banner-inner">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="3" y="1" width="10" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><line x1="7" y1="12" x2="9" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      <span>CareHQ is now on <strong>iOS</strong> &amp; <strong>Android</strong></span>
+      <a href="https://expo.dev/accounts/d2bishop/projects/carehq/builds" target="_blank" rel="noopener" class="app-banner-link">Get the app &rarr;</a>
+      <button class="app-banner-close" id="banner-close" aria-label="Dismiss banner">&times;</button>
+    </div>
+  </div>
+
+  <!-- ─── NAV ─── -->
+  <nav class="nav" id="nav">
+    <div class="container nav-inner">
+      <a href="#" class="logo" aria-label="CareHQ home">
+        <svg class="logo-icon" width="32" height="32" viewBox="0 0 32 32" fill="none">
+          <rect width="32" height="32" rx="8" fill="#0A7B6E"/>
+          <polygon points="16,7 26,15.2 6,15.2" fill="white"/>
+          <rect x="8.8" y="15.2" width="14.4" height="10.8" fill="white"/>
+          <rect x="13.2" y="18.4" width="5.6" height="7.6" rx="0.5" fill="#0A7B6E"/>
+        </svg>
+        <span class="logo-text">CareHQ</span>
+      </a>
+      <div class="nav-links" id="nav-links">
+        <a href="#features">Features</a>
+        <a href="#how">How it works</a>
+        <a href="#stories">Stories</a>
+      </div>
+      <div class="nav-right">
+        <a href="#waitlist-bottom" class="nav-cta">Join waitlist</a>
+        <button class="nav-menu" id="nav-menu" aria-label="Menu">
+          <span></span><span></span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ─── HERO ─── -->
+  <header class="hero section" id="hero">
+    <div class="container hero-inner">
+      <span class="badge reveal">Now in early access</span>
+      <h1 class="hero-h1 reveal">Finally, one place<br class="hide-mobile" /> for all of it.</h1>
+      <p class="hero-sub reveal">
+        CareHQ brings your entire care team &mdash; family, aides, nurses, doctors &mdash; into one shared workspace. Schedules, logs, medications, and the conversations in between. Organized, permissioned, and always in sync.
+      </p>
+      <form class="waitlist-form reveal" id="waitlist-hero" onsubmit="return handleWaitlist(event, this)">
+        <div class="input-group">
+          <input type="email" name="email" placeholder="Enter your email" required aria-label="Email address" autocomplete="email" />
+          <button type="submit" class="btn btn-primary">
+            <span class="btn-label">Join the waitlist</span>
+          </button>
+        </div>
+      </form>
+      <div class="trust-row reveal">
+        <div class="trust-item">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1L2 4v4c0 3.5 2.5 6.4 6 7 3.5-.6 6-3.5 6-7V4L8 1z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M5.5 8.5L7 10l3.5-4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>HIPAA aligned</span>
+        </div>
+        <div class="trust-item">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="3" y="7" width="10" height="7" rx="2" stroke="currentColor" stroke-width="1.3"/><path d="M5 7V5a3 3 0 016 0v2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+          <span>End-to-end encrypted</span>
+        </div>
+        <div class="trust-item">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.3"/><path d="M5 8.5l2 2 4-4.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>Free during beta</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ─── METRICS ─── -->
+  <section class="metrics" id="metrics">
+    <div class="container">
+      <div class="metrics-grid">
+        <div class="metric reveal">
+          <span class="metric-num">53M</span>
+          <span class="metric-label">Americans are unpaid family caregivers</span>
+        </div>
+        <div class="metric-divider"></div>
+        <div class="metric reveal">
+          <span class="metric-num">24 hrs</span>
+          <span class="metric-label">Average time spent caregiving each week</span>
+        </div>
+        <div class="metric-divider"></div>
+        <div class="metric reveal">
+          <span class="metric-num">61%</span>
+          <span class="metric-label">Of family caregivers also work full-time jobs</span>
+        </div>
+      </div>
+      <p class="metrics-source reveal">Source: AARP/NAC Caregiving in the U.S. Report</p>
+    </div>
+  </section>
+
+  <!-- ─── THE PROBLEM ─── -->
+  <section class="problem section" id="problem">
+    <div class="container">
+      <p class="section-label reveal">The reality</p>
+      <h2 class="section-heading reveal">Caregiving shouldn't feel like<br class="hide-mobile" /> air traffic control.</h2>
+      <div class="cards-3">
+        <div class="card reveal">
+          <div class="card-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          </div>
+          <h3 class="card-title">Scattered communication</h3>
+          <p class="card-text">The aide texts you. The PT emails your sister. The neurologist calls your mom. Nobody has the full picture.</p>
+        </div>
+        <div class="card reveal">
+          <div class="card-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="9" y1="4" x2="9" y2="10"/></svg>
+          </div>
+          <h3 class="card-title">No single source of truth</h3>
+          <p class="card-text">Medication changes live in voicemails. Shift schedules live in your head. Important patterns go unnoticed until it&rsquo;s too late.</p>
+        </div>
+        <div class="card reveal">
+          <div class="card-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <h3 class="card-title">The invisible burden</h3>
+          <p class="card-text">You&rsquo;re the default coordinator. You track everything, relay everything, catch everything &mdash; and nobody sees the work.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── FEATURES ─── -->
+  <section class="features section" id="features">
+    <div class="container">
+      <p class="section-label reveal">Purpose-built for care</p>
+      <h2 class="section-heading reveal">Everything your care team needs.<br class="hide-mobile" /> Nothing they don&rsquo;t.</h2>
+      <div class="feature-grid">
+        <div class="feature-card reveal">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="9" y1="4" x2="9" y2="22"/><line x1="15" y1="4" x2="15" y2="22"/><line x1="3" y1="16" x2="21" y2="16"/></svg>
+          </div>
+          <h3 class="feature-title">Shared calendar</h3>
+          <p class="feature-text">Every shift, appointment, and task in one living schedule. Syncs directly with Google Calendar. Permissioned access so everyone sees exactly what they need.</p>
+        </div>
+        <div class="feature-card reveal">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+          </div>
+          <h3 class="feature-title">Voice-first logging</h3>
+          <p class="feature-text">Tap, talk, done. Caregivers log observations in their own words. AI auto-tags entries and surfaces what matters most.</p>
+        </div>
+        <div class="feature-card reveal">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+          </div>
+          <h3 class="feature-title">Care team hub</h3>
+          <p class="feature-text">Aides, doctors, therapists, family &mdash; everyone in one roster with roles, contact info, and availability.</p>
+        </div>
+        <div class="feature-card reveal">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          </div>
+          <h3 class="feature-title">Smart insights</h3>
+          <p class="feature-text">Pattern detection that catches what humans miss. Medication gaps, mobility changes, and behavioral shifts &mdash; flagged before they become crises.</p>
+        </div>
+        <div class="feature-card reveal">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+          </div>
+          <h3 class="feature-title">Real-time sync</h3>
+          <p class="feature-text">Changes appear instantly across every device. No more &ldquo;did you tell the aide about the new medication?&rdquo;</p>
+        </div>
+        <div class="feature-card reveal">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </div>
+          <h3 class="feature-title">Family visibility</h3>
+          <p class="feature-text">Out-of-town siblings stay informed without the daily check-in call. Everyone sees the same picture, updated in real time.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── PHOTO BREAK ─── -->
+  <section class="photo-break">
+    <div class="container">
+      <div class="photo-block reveal">
+        <img
+          src="https://images.unsplash.com/photo-1576765608535-5f04d1e3f289?w=1200&q=80"
+          alt="A family caregiver sharing a warm moment with their parent at home"
+          class="photo-img"
+          loading="lazy"
+        />
+        <div class="photo-overlay">
+          <p class="photo-caption">Care is personal. Your tools should be too.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── TESTIMONIALS ─── -->
+  <section class="testimonials section" id="stories">
+    <div class="container">
+      <p class="section-label reveal">Real families</p>
+      <h2 class="section-heading reveal">Stories from people like you.</h2>
+      <div class="testimonial-grid">
+        <div class="testimonial reveal">
+          <div class="testimonial-stars">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="#F0A830"><path d="M8 0l2.47 5.01L16 5.81l-4 3.9.94 5.49L8 12.47 3.06 15.2 4 9.71 0 5.81l5.53-.8z"/></svg>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="#F0A830"><path d="M8 0l2.47 5.01L16 5.81l-4 3.9.94 5.49L8 12.47 3.06 15.2 4 9.71 0 5.81l5.53-.8z"/></svg>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="#F0A830"><path d="M8 0l2.47 5.01L16 5.81l-4 3.9.94 5.49L8 12.47 3.06 15.2 4 9.71 0 5.81l5.53-.8z"/></svg>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="#F0A830"><path d="M8 0l2.47 5.01L16 5.81l-4 3.9.94 5.49L8 12.47 3.06 15.2 4 9.71 0 5.81l5.53-.8z"/></svg>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="#F0A830"><path d="M8 0l2.47 5.01L16 5.81l-4 3.9.94 5.49L8 12.47 3.06 15.2 4 9.71 0 5.81l5.53-.8z"/></svg>
+          </div>
+          <blockquote class="testimonial-quote">
+            I was spending two hours a day just keeping everyone aligned on my father&rsquo;s care. Texting the aide, calling my brother, emailing the doctor&rsquo;s office. Now everyone&rsquo;s in CareHQ and I have my evenings back.
+          </blockquote>
+          <div class="testimonial-author">
+            <img src="https://images.unsplash.com/photo-1580489944761-15a19d654956?w=96&h=96&fit=crop&crop=face" alt="Sarah M." class="testimonial-avatar" loading="lazy" />
+            <div>
+              <strong class="testimonial-name">Sarah M.</strong>
+              <span class="testimonial-role">Cares for her father with Parkinson&rsquo;s</span>
+            </div>
+          </div>
+        </div>
+        <div class="testimonial reveal">
+          <div class="testimonial-stars">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="#F0A830"><path d="M8 0l2.47 5.01L16 5.81l-4 3.9.94 5.49L8 12.47 3.06 15.2 4 9.71 0 5.81l5.53-.8z"/></svg>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="#F0A830"><path d="M8 0l2.47 5.01L16 5.81l-4 3.9.94 5.49L8 12.47 3.06 15.2 4 9.71 0 5.81l5.53-.8z"/></svg>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="#F0A830"><path d="M8 0l2.47 5.01L16 5.81l-4 3.9.94 5.49L8 12.47 3.06 15.2 4 9.71 0 5.81l5.53-.8z"/></svg>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="#F0A830"><path d="M8 0l2.47 5.01L16 5.81l-4 3.9.94 5.49L8 12.47 3.06 15.2 4 9.71 0 5.81l5.53-.8z"/></svg>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="#F0A830"><path d="M8 0l2.47 5.01L16 5.81l-4 3.9.94 5.49L8 12.47 3.06 15.2 4 9.71 0 5.81l5.53-.8z"/></svg>
+          </div>
+          <blockquote class="testimonial-quote">
+            I live 800 miles from my mom. CareHQ lets me see her daily schedule, read the aide&rsquo;s notes, and know her PT appointment went well &mdash; without the guilt-ridden &ldquo;checking in&rdquo; calls.
+          </blockquote>
+          <div class="testimonial-author">
+            <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=96&h=96&fit=crop&crop=face" alt="James R." class="testimonial-avatar" loading="lazy" />
+            <div>
+              <strong class="testimonial-name">James R.</strong>
+              <span class="testimonial-role">Long-distance caregiver for his mother</span>
+            </div>
+          </div>
+        </div>
+        <div class="testimonial reveal">
+          <div class="testimonial-stars">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="#F0A830"><path d="M8 0l2.47 5.01L16 5.81l-4 3.9.94 5.49L8 12.47 3.06 15.2 4 9.71 0 5.81l5.53-.8z"/></svg>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="#F0A830"><path d="M8 0l2.47 5.01L16 5.81l-4 3.9.94 5.49L8 12.47 3.06 15.2 4 9.71 0 5.81l5.53-.8z"/></svg>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="#F0A830"><path d="M8 0l2.47 5.01L16 5.81l-4 3.9.94 5.49L8 12.47 3.06 15.2 4 9.71 0 5.81l5.53-.8z"/></svg>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="#F0A830"><path d="M8 0l2.47 5.01L16 5.81l-4 3.9.94 5.49L8 12.47 3.06 15.2 4 9.71 0 5.81l5.53-.8z"/></svg>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="#F0A830"><path d="M8 0l2.47 5.01L16 5.81l-4 3.9.94 5.49L8 12.47 3.06 15.2 4 9.71 0 5.81l5.53-.8z"/></svg>
+          </div>
+          <blockquote class="testimonial-quote">
+            I work with three families. Before CareHQ, every family had a different system &mdash; texts, binders, sticky notes on the fridge. Now I open the app and everything&rsquo;s there. It makes me better at my job.
+          </blockquote>
+          <div class="testimonial-author">
+            <img src="https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=96&h=96&fit=crop&crop=face" alt="Diana L." class="testimonial-avatar" loading="lazy" />
+            <div>
+              <strong class="testimonial-name">Diana L.</strong>
+              <span class="testimonial-role">Professional home health aide</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── HOW IT WORKS ─── -->
+  <section class="how-it-works section" id="how">
+    <div class="container">
+      <p class="section-label reveal">Simple by design</p>
+      <h2 class="section-heading reveal">Up and running in five minutes.</h2>
+      <div class="steps">
+        <div class="step reveal">
+          <div class="step-number">1</div>
+          <div class="step-content">
+            <h3 class="step-title">Set up your care circle</h3>
+            <p class="step-text">Add your care team &mdash; aides, nurses, doctors, family. Assign roles and set who sees what.</p>
+          </div>
+        </div>
+        <div class="step reveal">
+          <div class="step-number">2</div>
+          <div class="step-content">
+            <h3 class="step-title">Connect your calendar</h3>
+            <p class="step-text">CareHQ creates a shared Google Calendar for your care recipient. Every shift, appointment, and reminder lives there.</p>
+          </div>
+        </div>
+        <div class="step reveal">
+          <div class="step-number">3</div>
+          <div class="step-content">
+            <h3 class="step-title">Stay ahead, not behind</h3>
+            <p class="step-text">Voice-log updates, get smart alerts, and let the whole team see what&rsquo;s happening &mdash; in real time, from any device.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── SECURITY ─── -->
+  <section class="security section" id="security">
+    <div class="container">
+      <div class="security-card reveal">
+        <div class="security-icon-wrap">
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3L5 8v6c0 7.18 4.68 13.89 11 16 6.32-2.11 11-8.82 11-16V8L16 3z"/><path d="M11 16l3 3 7-7"/></svg>
+        </div>
+        <h2 class="security-heading">Your family&rsquo;s data is sacred.</h2>
+        <p class="security-text">CareHQ is built with healthcare-grade security from the ground up. Every piece of data is encrypted, every action is permissioned, and your family&rsquo;s information never leaves your control.</p>
+        <div class="security-badges">
+          <div class="security-badge">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M9 1.5L3 4.5v3.5c0 4 2.5 7.2 6 8 3.5-.8 6-4 6-8V4.5L9 1.5z"/></svg>
+            HIPAA Aligned
+          </div>
+          <div class="security-badge">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="4" y="8" width="10" height="7" rx="2"/><path d="M6 8V6a3 3 0 016 0v2"/></svg>
+            256-bit Encryption
+          </div>
+          <div class="security-badge">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="9" cy="9" r="7"/><path d="M6 9.5l2 2 4-4"/></svg>
+            Granular Permissions
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── FINAL CTA ─── -->
+  <section class="final-cta section" id="waitlist-bottom">
+    <div class="container">
+      <h2 class="final-heading reveal">Your family&rsquo;s care deserves<br class="hide-mobile" /> better than a group text.</h2>
+      <p class="final-sub reveal">Join hundreds of families already coordinating care with CareHQ.</p>
+      <form class="waitlist-form reveal" id="waitlist-bottom-form" onsubmit="return handleWaitlist(event, this)">
+        <div class="input-group">
+          <input type="email" name="email" placeholder="Enter your email" required aria-label="Email address" autocomplete="email" />
+          <button type="submit" class="btn btn-primary">
+            <span class="btn-label">Join the waitlist</span>
+          </button>
+        </div>
+      </form>
+      <p class="final-note reveal">Free during early access. No credit card required.</p>
+    </div>
+  </section>
+
+  <!-- ─── FOOTER ─── -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-top">
+        <div class="footer-brand">
+          <a href="#" class="logo" aria-label="CareHQ home">
+            <svg class="logo-icon" width="28" height="28" viewBox="0 0 32 32" fill="none">
+              <rect width="32" height="32" rx="8" fill="#0A7B6E"/>
+              <polygon points="16,7 26,15.2 6,15.2" fill="white"/>
+              <rect x="8.8" y="15.2" width="14.4" height="10.8" fill="white"/>
+              <rect x="13.2" y="18.4" width="5.6" height="7.6" rx="0.5" fill="#0A7B6E"/>
+            </svg>
+            <span class="logo-text">CareHQ</span>
+          </a>
+          <p class="footer-desc">The coordination layer for family caregivers.</p>
+        </div>
+        <div class="footer-nav">
+          <div class="footer-col">
+            <h4>Product</h4>
+            <a href="#features">Features</a>
+            <a href="#how">How it works</a>
+            <a href="#stories">Stories</a>
+            <a href="https://expo.dev/accounts/d2bishop/projects/carehq/builds" target="_blank" rel="noopener">Mobile app</a>
+          </div>
+          <div class="footer-col">
+            <h4>Company</h4>
+            <a href="mailto:hello@mycare-hq.com">Contact</a>
+          </div>
+          <div class="footer-col">
+            <h4>Legal</h4>
+            <a href="#">Privacy</a>
+            <a href="#">Terms</a>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 CareHQ. All rights reserved.</p>
+        <p>Built with care in Chicago.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ─── TOAST ─── -->
+  <div class="toast" id="toast" role="alert" aria-live="polite">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9" stroke="white" stroke-width="1.5"/><path d="M6 10.5L8.5 13L14 7" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span>You&rsquo;re on the list! We&rsquo;ll be in touch soon.</span>
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>
