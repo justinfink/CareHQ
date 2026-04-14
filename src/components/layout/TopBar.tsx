@@ -9,9 +9,10 @@ export default function TopBar() {
     <header className="lg:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-[var(--color-border-default)] sticky top-0 z-40">
       <div className="flex items-center gap-2.5">
         <div className="w-7 h-7 rounded-[6px] bg-[var(--color-brand-primary)] flex items-center justify-center">
-          <svg width="14" height="14" viewBox="0 0 18 18" fill="none">
-            <path d="M9 4.5a4.5 4.5 0 100 9 4.5 4.5 0 000-9zm0 7.5a3 3 0 110-6 3 3 0 010 6z" fill="white"/>
-            <path d="M9 6.75a2.25 2.25 0 100 4.5 2.25 2.25 0 000-4.5z" fill="white"/>
+          <svg width="14" height="14" viewBox="50 45 100 115" fill="none">
+            <polygon points="100,50 150,95 50,95" fill="white"/>
+            <rect x="60" y="95" width="80" height="60" fill="white"/>
+            <rect x="88" y="115" width="24" height="40" rx="3" fill="#0A7B6E"/>
           </svg>
         </div>
         <span className="text-base font-semibold text-[var(--color-brand-primary)]">CareHQ</span>

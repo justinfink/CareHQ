@@ -84,4 +84,37 @@ for (const { svg, size, out } of targets) {
   console.log(`  ${size}x${size}  ${out}`);
 }
 
-console.log('\nDone! All icons generated.');
+// Splash screens: teal background with centered house icon (~25% of short edge)
+const splashSizes = {
+  'drawable-port-mdpi': [320, 480],
+  'drawable-port-hdpi': [480, 800],
+  'drawable-port-xhdpi': [720, 1280],
+  'drawable-port-xxhdpi': [960, 1600],
+  'drawable-port-xxxhdpi': [1280, 1920],
+  'drawable-land-mdpi': [480, 320],
+  'drawable-land-hdpi': [800, 480],
+  'drawable-land-xhdpi': [1280, 720],
+  'drawable-land-xxhdpi': [1600, 960],
+  'drawable-land-xxxhdpi': [1920, 1280],
+  'drawable': [480, 320],
+};
+
+console.log('\nGenerating splash screens...\n');
+
+for (const [dir, [w, h]] of Object.entries(splashSizes)) {
+  const iconSize = Math.round(Math.min(w, h) * 0.3);
+  const iconPng = await sharp(iconSvg, { density: 400 })
+    .resize(iconSize, iconSize)
+    .png()
+    .toBuffer();
+  const outPath = resolve(root, `android/app/src/main/res/${dir}/splash.png`);
+  await sharp({
+    create: { width: w, height: h, channels: 4, background: { r: 10, g: 123, b: 110, alpha: 1 } },
+  })
+    .composite([{ input: iconPng, gravity: 'center' }])
+    .png(pngOpts)
+    .toFile(outPath);
+  console.log(`  ${w}x${h}  android/app/src/main/res/${dir}/splash.png`);
+}
+
+console.log('\nDone! All icons and splash screens generated.');
