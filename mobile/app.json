@@ -8,9 +8,6 @@
     "scheme": "carehq",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "splash": {
-      "backgroundColor": "#0A7B6E"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.carehq.app"
@@ -24,7 +21,15 @@
     },
     "plugins": [
       "expo-router",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "backgroundColor": "#0A7B6E",
+          "resizeMode": "contain"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
