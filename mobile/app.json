@@ -10,7 +10,10 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.carehq.app"
+      "bundleIdentifier": "com.carehq.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -40,6 +43,12 @@
         "projectId": "34acfccf-7bb0-4ed4-b9a3-4c9604903a78"
       }
     },
-    "owner": "d2bishop"
+    "owner": "d2bishop",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/34acfccf-7bb0-4ed4-b9a3-4c9604903a78"
+    }
   }
 }
