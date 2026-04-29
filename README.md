@@ -1,73 +1,60 @@
-# React + TypeScript + Vite
+# CareHQ
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+An **AI-native care coordinator** for families managing eldercare or chronic care at home.
 
-Currently, two official plugins are available:
+> Most caregiving tools help the family *coordinate* the work of caring for a loved one. CareHQ *does* the work — schedule reconciliation, medication follow-ups, doctor-visit prep, insurance navigation — under the family's supervision.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Status
 
-## React Compiler
+Early build. Web app, mobile (Expo), and landing site exist. The Supabase backend, schema, auth, and agent runtime are being stood up in place of the previous mocked-data prototype. Specifics, roadmap, and decisions live in the project plan and `CLAUDE.md`.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+The four pillars guiding the redesign:
 
-## Expanding the ESLint configuration
+1. **Agentic, not coordinative** — an always-on agent with persistent memory of the care recipient.
+2. **Multi-channel, voice-first** — phone, SMS, email, voice are first-class; the app is one of several surfaces.
+3. **Granular permissions** as a first-class data model — enforced at the database, not in the UI.
+4. **Connected** via API integrations where they exist and agent-driven browser/voice flows where they don't.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+V1 is being built for the **family coordinator** persona (adult-child-of-aging-parent). The agent operates on a "routine auto, sensitive gated" autonomy model — it acts on its own for routine reminders and digests, and queues anything that touches a clinician, insurer, finances, or external party for the Owner's one-tap approval.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Stack
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+- **Web:** Vite + React 19, TanStack Query, Zustand, Tailwind, Framer Motion. Deployed to Vercel.
+- **Mobile:** Expo + React Native + NativeWind. Deployed via EAS.
+- **Backend:** Supabase (Postgres, Auth, Storage, Realtime, Edge Functions). RLS on every table.
+- **Agent runtime:** Anthropic SDK via Vercel Edge Functions. Prompt caching on the recipient "brain."
+- **Channels:** Twilio (SMS + voice — wiring in progress), Gmail-forward parsing, Apple Health.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Repo
+
+```
+src/        Web app
+mobile/     Expo app
+landing/    Marketing site (mycare-hq.com)
+api/        Vercel serverless functions (e.g. /api/agent)
+public/     Web static assets
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Local dev
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
 ```
+cp .env .env.local      # if you want overrides
+npm install
+npm run dev             # http://localhost:5180
+```
+
+```
+cd mobile
+npm install
+npm start               # Expo dev tools
+```
+
+## Environment
+
+- `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` — Supabase project credentials.
+- `VITE_GOOGLE_CLIENT_ID` — Google OAuth client ID for the calendar integration.
+- `ANTHROPIC_API_KEY` — server-only; required for `/api/agent`.
+
+## Notes for AI collaborators
+
+See `CLAUDE.md` for the product thesis, schema, conventions, and things to avoid when editing.

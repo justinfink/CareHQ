@@ -1,8 +1,9 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Users, Mic, CalendarDays, Sparkles } from 'lucide-react'
+import { LayoutDashboard, Users, Mic, CalendarDays, Sparkles, LogOut } from 'lucide-react'
 import Avatar from '../ui/Avatar'
 import { user } from '../../data/mockUser'
 import { useAppStore } from '../../store/useAppStore'
+import { useAuth } from '../../contexts/AuthContext'
 
 const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -15,6 +16,9 @@ const navItems = [
 export default function Sidebar() {
   const insights = useAppStore((s) => s.insights)
   const alertCount = insights.filter((i) => !i.resolved && (i.severity === 'alert' || i.severity === 'warning')).length
+  const { user: authUser, signOut } = useAuth()
+  const displayName = authUser?.user_metadata?.full_name || authUser?.email || user.name
+  const displayEmail = authUser?.email
 
   return (
     <aside className="hidden lg:flex flex-col w-60 h-screen bg-white border-r border-[var(--color-border-default)] fixed left-0 top-0 z-40">
@@ -58,11 +62,22 @@ export default function Sidebar() {
       {/* User section */}
       <div className="px-5 py-4 border-t border-[var(--color-border-default)]">
         <div className="flex items-center gap-3">
-          <Avatar name={user.name} size="sm" color={user.avatarColor} />
-          <div className="min-w-0">
-            <div className="text-sm font-medium text-[var(--color-text-primary)] truncate">{user.name}</div>
-            <div className="text-xs text-[var(--color-text-tertiary)]">{user.careRecipient.firstName}&apos;s care</div>
+          <Avatar name={displayName} size="sm" color={user.avatarColor} />
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-medium text-[var(--color-text-primary)] truncate">{displayName}</div>
+            <div className="text-xs text-[var(--color-text-tertiary)] truncate">
+              {displayEmail || `${user.careRecipient.firstName}'s care`}
+            </div>
           </div>
+          {authUser && (
+            <button
+              onClick={() => void signOut()}
+              aria-label="Sign out"
+              className="p-1.5 rounded-md text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-alt)] transition-colors"
+            >
+              <LogOut size={16} />
+            </button>
+          )}
         </div>
       </div>
     </aside>
