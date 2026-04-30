@@ -7,6 +7,7 @@ interface AuthContextValue {
   user: User | null
   loading: boolean
   signInWithEmail: (email: string) => Promise<{ error: Error | null }>
+  signInWithGoogle: () => Promise<{ error: Error | null }>
   signOut: () => Promise<void>
 }
 
@@ -15,6 +16,7 @@ const AuthContext = createContext<AuthContextValue>({
   user: null,
   loading: true,
   signInWithEmail: async () => ({ error: new Error('AuthContext not ready') }),
+  signInWithGoogle: async () => ({ error: new Error('AuthContext not ready') }),
   signOut: async () => {},
 })
 
@@ -49,6 +51,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error }
   }
 
+  const signInWithGoogle = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin + '/auth/callback',
+      },
+    })
+    return { error }
+  }
+
   const signOut = async () => {
     await supabase.auth.signOut()
   }
@@ -60,6 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: session?.user ?? null,
         loading,
         signInWithEmail,
+        signInWithGoogle,
         signOut,
       }}
     >
