@@ -16,6 +16,28 @@ import { getMyPrimaryRecipient } from '../../src/api/recipient'
 import { supabase } from '../../src/lib/supabase'
 import { colors, typography, spacing, borderRadius, shadows } from '../../src/theme'
 
+const API_BASE =
+  process.env.EXPO_PUBLIC_API_BASE || 'https://carehq-app.vercel.app'
+
+async function decideOnServer(approvalId: string, status: 'approved' | 'denied') {
+  const { data } = await supabase.auth.getSession()
+  const token = data.session?.access_token
+  if (!token) throw new Error('Not signed in')
+  const res = await fetch(`${API_BASE}/api/approvals/decide`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ approvalId, status }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || `Decide failed (${res.status})`)
+  }
+  return (await res.json()) as { ok: boolean; executed: boolean; detail?: string }
+}
+
 interface AgentApproval {
   id: string
   reason: string
@@ -64,19 +86,11 @@ export default function InboxScreen() {
   const decideMutation = useMutation({
     mutationFn: async (input: { id: string; status: 'approved' | 'denied' }) => {
       if (!user) throw new Error('Not signed in')
-      const { error } = await supabase
-        .from('agent_approvals')
-        .update({
-          status: input.status,
-          decided_by_profile_id: user.id,
-          decided_at: new Date().toISOString(),
-        })
-        .eq('id', input.id)
-      if (error) throw error
-      return input
+      return decideOnServer(input.id, input.status)
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['agent_approvals', recipientQuery.data?.id] })
+      qc.invalidateQueries({ queryKey: ['events', recipientQuery.data?.id] })
     },
   })
 

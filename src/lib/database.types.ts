@@ -260,6 +260,28 @@ export interface Database {
         }
         Update: Partial<Database['public']['Tables']['agent_approvals']['Row']>
       }
+      care_team_invites: {
+        Row: {
+          id: string
+          recipient_id: string
+          email: string
+          member_role: MemberRole
+          display_name: string | null
+          organization: string | null
+          contact_phone_e164: string | null
+          invited_by_profile_id: string | null
+          message: string | null
+          status: string
+          created_at: string
+          accepted_at: string | null
+          accepted_by_profile_id: string | null
+        }
+        Insert: Partial<Database['public']['Tables']['care_team_invites']['Row']> & {
+          recipient_id: string
+          email: string
+        }
+        Update: Partial<Database['public']['Tables']['care_team_invites']['Row']>
+      }
       audit_log: {
         Row: {
           id: number

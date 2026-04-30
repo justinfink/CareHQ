@@ -1,11 +1,11 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import AppShell from './components/layout/AppShell'
 import RequireAuth from './components/auth/RequireAuth'
-import Dashboard from './pages/Dashboard'
-import CareTeam from './pages/CareTeam'
-import VoiceLog from './pages/VoiceLog'
-import Insights from './pages/Insights'
-import Calendar from './pages/Calendar'
+import Stream from './pages/Stream'
+import Inbox from './pages/Inbox'
+import Care from './pages/Care'
+import Settings from './pages/Settings'
+import WebCalendar from './pages/WebCalendar'
 import Auth from './pages/Auth'
 import AuthCallback from './pages/AuthCallback'
 
@@ -22,13 +22,17 @@ export default function App() {
           </RequireAuth>
         }
       >
-        <Route index element={<Navigate to="/dashboard" replace />} />
-        <Route path="dashboard" element={<Dashboard />} />
-        <Route path="care-team" element={<CareTeam />} />
-        <Route path="care-team/:memberId" element={<CareTeam />} />
-        <Route path="log" element={<VoiceLog />} />
-        <Route path="calendar" element={<Calendar />} />
-        <Route path="insights" element={<Insights />} />
+        <Route index element={<Stream />} />
+        <Route path="inbox" element={<Inbox />} />
+        <Route path="calendar" element={<WebCalendar />} />
+        <Route path="care" element={<Care />} />
+        <Route path="settings" element={<Settings />} />
+        {/* Legacy paths redirect to home */}
+        <Route path="dashboard" element={<Navigate to="/" replace />} />
+        <Route path="care-team" element={<Navigate to="/care" replace />} />
+        <Route path="care-team/:memberId" element={<Navigate to="/care" replace />} />
+        <Route path="log" element={<Navigate to="/" replace />} />
+        <Route path="insights" element={<Navigate to="/inbox" replace />} />
       </Route>
     </Routes>
   )

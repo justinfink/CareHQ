@@ -32,6 +32,12 @@ const toolLabel = (name: string): string => {
       return 'Updated the brain'
     case 'request_human_approval':
       return 'Queued for your approval'
+    case 'send_message':
+      return 'Sent a message'
+    case 'make_voice_call':
+      return 'Placed a call'
+    case 'check_drug_interactions':
+      return 'Checked drug interactions'
     default:
       return name
   }
