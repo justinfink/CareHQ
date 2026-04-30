@@ -13,12 +13,18 @@ ROUTINE (auto, no approval) — use the appropriate tool:
 - Asking clarifying questions
 - Reporting on what you know
 
+ROUTINE outbound — use send_sms directly:
+- Reminders to a team member (family member or professional caregiver) the user has already added
+- Acknowledgements / confirmations to a team member (e.g. "got it — logged 8am meds taken")
+- Daily / weekly digests to family members on their preferred channel
+
 SENSITIVE (drafted, queued for Owner approval via request_human_approval):
 - Any outbound message to a clinician, prescriber, pharmacy, insurer, or external party
 - Anything that creates a financial or legal obligation (booking an appointment that incurs a copay, signing a form, submitting a claim)
 - Escalations that call a human (on-call nurse, emergency contact). Never claim 911 has been called — that path is human-only
 - Adding/removing team members, changing roles or share scopes
 - Edits to advance directives, POA records, or insurance details
+- The first outbound message to any new external contact (subsequent messages in that thread can become routine if Owner approves the contact)
 
 When the user tells you something happened, log it. When they tell you something stable about the recipient (a new med, a condition, a provider), update the brain. When they ask you to do something sensitive, draft it and queue it. When they ask a question, answer plainly and concisely from the brain + recent events you can see.
 
@@ -124,6 +130,32 @@ const TOOLS: Anthropic.Tool[] = [
         },
       },
       required: ['field', 'operation', 'value'],
+    },
+  },
+  {
+    name: 'send_sms',
+    description:
+      'Send an SMS via the recipient\'s connected Twilio number. Use this ONLY for routine messages to team members (family or professional caregivers) the user has already added. For anyone external (clinician, pharmacy, insurer, unknown number) use request_human_approval instead.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        to_member_id: {
+          type: 'string',
+          description:
+            'The care_teams.id of the team member to text. Pull from the [Team] context block. Preferred over to_phone.',
+        },
+        to_phone: {
+          type: 'string',
+          description:
+            'E.164 phone number (e.g. +14155551234). Only use if there is no team member id and you are confident the number belongs to a team member.',
+        },
+        body: {
+          type: 'string',
+          description:
+            'The SMS text. Keep it under 320 chars; identify yourself as CareHQ on first message; include opt-out hint when introducing the agent.',
+        },
+      },
+      required: ['body'],
     },
   },
   {
@@ -241,6 +273,123 @@ async function executeTool(
     return { ok: true, field, operation }
   }
 
+  if (name === 'send_sms') {
+    if (!ctx.recipientId) {
+      return { error: 'No care recipient set up yet.' }
+    }
+    if (!input.body) return { error: 'body is required' }
+
+    // Resolve destination
+    let toPhone: string | null = null
+    let memberId: string | null = null
+    if (input.to_member_id) {
+      const { data: m } = await ctx.supabase
+        .from('care_teams')
+        .select('id, contact_phone_e164, display_name')
+        .eq('id', input.to_member_id)
+        .eq('care_recipient_id', ctx.recipientId)
+        .maybeSingle()
+      if (!m) {
+        return {
+          error:
+            'That team member does not exist or is not on this care team. Use request_human_approval instead.',
+        }
+      }
+      toPhone = (m as any).contact_phone_e164
+      memberId = (m as any).id
+      if (!toPhone) {
+        return {
+          error: `Team member ${(m as any).display_name ?? memberId} has no phone number on file. Update the care team or use request_human_approval.`,
+        }
+      }
+    } else if (input.to_phone) {
+      toPhone = input.to_phone
+      // Confirm it belongs to a team member; if not, refuse and require approval
+      const { data: m } = await ctx.supabase
+        .from('care_teams')
+        .select('id')
+        .eq('care_recipient_id', ctx.recipientId)
+        .eq('contact_phone_e164', toPhone)
+        .maybeSingle()
+      if (!m) {
+        return {
+          error:
+            'That phone number is not on this care team. Use request_human_approval for any external contact.',
+        }
+      }
+      memberId = (m as any).id
+    } else {
+      return { error: 'to_member_id or to_phone required' }
+    }
+
+    // Look up Twilio integration
+    const { data: integ, error: integErr } = await ctx.supabase
+      .from('integrations')
+      .select('external_account, access_token_enc, config')
+      .eq('recipient_id', ctx.recipientId)
+      .eq('provider', 'twilio')
+      .maybeSingle()
+    if (integErr) return { error: integErr.message }
+    if (!integ) {
+      return {
+        error:
+          'Twilio is not connected for this recipient. Tell the user to connect Twilio in Settings → Channels.',
+      }
+    }
+    const sid = (integ as any).external_account
+    const tok = (integ as any).access_token_enc
+    const from = ((integ as any).config?.from as string) || ''
+    if (!sid || !tok || !from) {
+      return { error: 'Twilio integration is incomplete. Tell the user to reconnect.' }
+    }
+
+    // Send via Twilio REST API
+    const auth = btoa(`${sid}:${tok}`)
+    const params = new URLSearchParams({
+      To: toPhone!,
+      From: from,
+      Body: input.body.toString().slice(0, 1200),
+    })
+    const sendRes = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Basic ${auth}`,
+          'content-type': 'application/x-www-form-urlencoded',
+        },
+        body: params.toString(),
+      },
+    )
+    if (!sendRes.ok) {
+      const detail = await sendRes.text().catch(() => '')
+      return { error: `Twilio rejected the send: ${sendRes.status} ${detail.slice(0, 200)}` }
+    }
+    const msg = (await sendRes.json()) as { sid?: string; status?: string }
+
+    // Log to messages + an event row
+    await ctx.supabase.from('messages').insert({
+      recipient_id: ctx.recipientId,
+      member_id: memberId,
+      external_address: toPhone,
+      channel: 'sms',
+      direction: 'outbound',
+      body: input.body.toString().slice(0, 1200),
+      agent_run_id: ctx.agentRunId,
+    })
+    await ctx.supabase.from('events').insert({
+      recipient_id: ctx.recipientId,
+      kind: 'message_sent',
+      scope_key: 'event.message',
+      summary: `SMS to ${toPhone}: ${input.body.toString().slice(0, 120)}`,
+      payload: { to: toPhone, body: input.body, twilioSid: msg.sid },
+      source_channel: 'app',
+      logged_by_profile_id: ctx.profileId,
+    })
+
+    return { ok: true, twilioSid: msg.sid, status: msg.status }
+  }
+
   if (name === 'request_human_approval') {
     if (!ctx.recipientId) {
       return {
@@ -327,6 +476,29 @@ export default async function handler(req: Request) {
       .maybeSingle()
     if (rec) {
       brainContext = `\n\n[Recipient name]\n${(rec as any).name}` + brainContext
+    }
+    // Care team — needed so the agent can pick the right to_member_id when sending SMS
+    const { data: team } = await supabase
+      .from('care_teams')
+      .select('id, member_role, role, display_name, contact_phone_e164, contact_email, organization')
+      .eq('care_recipient_id', recipientId)
+    if (team && team.length > 0) {
+      brainContext += `\n\n[Team — care_teams.id you can pass to send_sms.to_member_id]\n${JSON.stringify(team, null, 2)}`
+    }
+    // Channel integrations available
+    const { data: integs } = await supabase
+      .from('integrations')
+      .select('provider, status, config')
+      .eq('recipient_id', recipientId)
+      .eq('status', 'active')
+    if (integs && integs.length > 0) {
+      brainContext += `\n\n[Active integrations]\n${JSON.stringify(
+        integs.map((i: any) => ({ provider: i.provider, config: i.config })),
+        null,
+        2,
+      )}`
+    } else {
+      brainContext += `\n\n[Active integrations]\nnone — send_sms will error until the user connects Twilio in Settings → Channels.`
     }
     // Recent events
     const { data: recent } = await supabase

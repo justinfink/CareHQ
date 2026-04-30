@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   View,
   Text,
@@ -13,13 +13,21 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Heart, UserPlus, Plus, X, Pill, Stethoscope, ShieldAlert } from 'lucide-react-native'
+import { Heart, UserPlus, Plus, X, Pill, Stethoscope, ShieldAlert, Search } from 'lucide-react-native'
 import { useAuth } from '../../src/contexts/AuthContext'
 import {
   getMyPrimaryRecipient,
   createRecipient,
   type CareRecipient,
 } from '../../src/api/recipient'
+import {
+  searchMedications,
+  searchConditions,
+  searchProviders,
+  type MedSuggestion,
+  type ConditionSuggestion,
+  type ProviderSuggestion,
+} from '../../src/api/catalog'
 import { supabase } from '../../src/lib/supabase'
 import { colors, typography, spacing, borderRadius, shadows } from '../../src/theme'
 
@@ -134,21 +142,126 @@ const FIELD_CONFIG: Record<
   },
 }
 
+interface CatalogSuggestion {
+  primaryLabel: string
+  secondaryLabel?: string
+  fill: Record<string, string>
+}
+
+function useCatalog(
+  field: BrainField | null,
+  query: string,
+): { suggestions: CatalogSuggestion[]; loading: boolean } {
+  const [suggestions, setSuggestions] = useState<CatalogSuggestion[]>([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!field || !query.trim() || query.trim().length < 2) {
+      setSuggestions([])
+      return
+    }
+    let cancelled = false
+    const t = setTimeout(async () => {
+      setLoading(true)
+      try {
+        if (field === 'medications') {
+          const meds: MedSuggestion[] = await searchMedications(query)
+          if (cancelled) return
+          setSuggestions(
+            meds.map((m) => ({
+              primaryLabel: m.name,
+              secondaryLabel: `RxCUI ${m.rxcui}`,
+              fill: { name: m.name, rxcui: m.rxcui },
+            })),
+          )
+        } else if (field === 'conditions') {
+          const conds: ConditionSuggestion[] = await searchConditions(query)
+          if (cancelled) return
+          setSuggestions(
+            conds.map((c) => ({
+              primaryLabel: c.name,
+              secondaryLabel: `ICD-10 ${c.code}`,
+              fill: { name: c.name, icd10: c.code },
+            })),
+          )
+        } else if (field === 'providers') {
+          const provs: ProviderSuggestion[] = await searchProviders(query)
+          if (cancelled) return
+          setSuggestions(
+            provs.map((p) => {
+              const where = [p.city, p.state].filter(Boolean).join(', ')
+              return {
+                primaryLabel: p.name,
+                secondaryLabel: [p.specialty, where].filter(Boolean).join(' · '),
+                fill: {
+                  name: p.name,
+                  npi: p.npi,
+                  ...(p.specialty ? { specialty: p.specialty } : {}),
+                  ...(p.organization ? { organization: p.organization } : {}),
+                  ...(p.phone ? { phone: p.phone } : {}),
+                  ...(p.city ? { city: p.city } : {}),
+                  ...(p.state ? { state: p.state } : {}),
+                },
+              }
+            }),
+          )
+        } else {
+          setSuggestions([])
+        }
+      } catch {
+        if (!cancelled) setSuggestions([])
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }, 300)
+    return () => {
+      cancelled = true
+      clearTimeout(t)
+    }
+  }, [field, query])
+
+  return { suggestions, loading }
+}
+
 function AddItemSheet({ visible, field, recipientId, ownerId, onClose }: AddItemSheetProps) {
   const qc = useQueryClient()
   const [primary, setPrimary] = useState('')
   const [extras, setExtras] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
+  // Locked-in catalog data when the user picks a suggestion (rxcui, icd10, npi, etc.)
+  const [catalogFill, setCatalogFill] = useState<Record<string, string>>({})
 
   const config = field ? FIELD_CONFIG[field] : null
+  const { suggestions, loading: searching } = useCatalog(field, primary)
+  // Allergies have no public catalog; hide the suggestions panel for that field.
+  const showSuggestions =
+    field !== null && field !== 'allergies' && suggestions.length > 0
 
   React.useEffect(() => {
     if (visible) {
       setPrimary('')
       setExtras({})
+      setCatalogFill({})
       setError(null)
     }
   }, [visible])
+
+  const pickSuggestion = (s: CatalogSuggestion) => {
+    setPrimary(s.fill.name ?? s.primaryLabel)
+    const fillExtras: Record<string, string> = {}
+    if (config?.extraFields) {
+      for (const ef of config.extraFields) {
+        if (s.fill[ef.key]) fillExtras[ef.key] = s.fill[ef.key]
+      }
+    }
+    setExtras((prev) => ({ ...prev, ...fillExtras }))
+    // Stash codes that aren't surfaced in the form
+    const codes: Record<string, string> = {}
+    for (const k of ['rxcui', 'icd10', 'npi', 'city', 'state']) {
+      if (s.fill[k] && !fillExtras[k]) codes[k] = s.fill[k]
+    }
+    setCatalogFill(codes)
+  }
 
   const append = useMutation({
     mutationFn: async () => {
@@ -167,6 +280,10 @@ function AddItemSheet({ visible, field, recipientId, ownerId, onClose }: AddItem
       for (const f of config!.extraFields ?? []) {
         const v = extras[f.key]?.trim()
         if (v) item[f.key] = v
+      }
+      // Fold in catalog codes (rxcui, icd10, npi, etc.) so future agents can link.
+      for (const [k, v] of Object.entries(catalogFill)) {
+        if (v) item[k] = v
       }
 
       const { error: writeErr } = await supabase
@@ -210,17 +327,52 @@ function AddItemSheet({ visible, field, recipientId, ownerId, onClose }: AddItem
               <X size={20} color={colors.textTertiary} />
             </Pressable>
           </View>
-          <TextInput
-            value={primary}
-            onChangeText={(v) => {
-              setPrimary(v)
-              setError(null)
-            }}
-            placeholder={config.placeholder}
-            placeholderTextColor={colors.textTertiary}
-            style={styles.input}
-            autoCapitalize="words"
-          />
+          <View style={styles.inputWithIcon}>
+            <Search size={16} color={colors.textTertiary} style={styles.inputIcon} />
+            <TextInput
+              value={primary}
+              onChangeText={(v) => {
+                setPrimary(v)
+                setError(null)
+                // Drop any locked-in codes when the user types fresh text
+                setCatalogFill({})
+              }}
+              placeholder={config.placeholder}
+              placeholderTextColor={colors.textTertiary}
+              style={[styles.input, styles.inputInline]}
+              autoCapitalize="words"
+            />
+            {searching ? (
+              <ActivityIndicator
+                size="small"
+                color={colors.textTertiary}
+                style={styles.inputSpinner}
+              />
+            ) : null}
+          </View>
+          {showSuggestions ? (
+            <ScrollView
+              style={styles.suggestionList}
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled
+            >
+              {suggestions.map((s, i) => (
+                <Pressable
+                  key={i}
+                  onPress={() => pickSuggestion(s)}
+                  style={({ pressed }) => [
+                    styles.suggestionItem,
+                    pressed && { backgroundColor: colors.primaryLight },
+                  ]}
+                >
+                  <Text style={styles.suggestionPrimary}>{s.primaryLabel}</Text>
+                  {s.secondaryLabel ? (
+                    <Text style={styles.suggestionSecondary}>{s.secondaryLabel}</Text>
+                  ) : null}
+                </Pressable>
+              ))}
+            </ScrollView>
+          ) : null}
           {(config.extraFields ?? []).map((f) => (
             <TextInput
               key={f.key}
@@ -231,6 +383,17 @@ function AddItemSheet({ visible, field, recipientId, ownerId, onClose }: AddItem
               style={styles.input}
             />
           ))}
+          {Object.keys(catalogFill).length > 0 ? (
+            <View style={styles.codeChipRow}>
+              {Object.entries(catalogFill).map(([k, v]) => (
+                <View key={k} style={styles.codeChip}>
+                  <Text style={styles.codeChipText}>
+                    {k}: {v}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <Pressable
             onPress={() => append.mutate()}
@@ -685,5 +848,72 @@ const styles = StyleSheet.create({
     fontFamily: typography.fontFamily.semiBold,
     fontSize: typography.size.lg,
     color: colors.textPrimary,
+  },
+  inputWithIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.md,
+    backgroundColor: 'white',
+    marginBottom: spacing.md,
+  },
+  inputIcon: {
+    marginRight: spacing.sm,
+  },
+  inputInline: {
+    flex: 1,
+    borderWidth: 0,
+    paddingHorizontal: 0,
+    marginBottom: 0,
+    backgroundColor: 'transparent',
+  },
+  inputSpinner: {
+    marginLeft: spacing.sm,
+  },
+  suggestionList: {
+    maxHeight: 220,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    borderRadius: borderRadius.md,
+    backgroundColor: 'white',
+  },
+  suggestionItem: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
+  },
+  suggestionPrimary: {
+    fontFamily: typography.fontFamily.medium,
+    fontSize: typography.size.sm,
+    color: colors.textPrimary,
+  },
+  suggestionSecondary: {
+    fontFamily: typography.fontFamily.regular,
+    fontSize: typography.size.xs,
+    color: colors.textTertiary,
+    marginTop: 2,
+  },
+  codeChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  codeChip: {
+    backgroundColor: colors.primaryLight,
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm,
+    borderRadius: 999,
+  },
+  codeChipText: {
+    fontFamily: typography.fontFamily.medium,
+    fontSize: typography.size.xs,
+    color: colors.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
 })
