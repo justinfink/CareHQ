@@ -85,3 +85,104 @@ export async function disconnectTwilio(recipientId: string): Promise<void> {
     throw new Error(err.error || `Disconnect failed (${res.status})`)
   }
 }
+
+// ─── Google (Calendar + Gmail) ────────────────────────────────────────
+
+export interface GoogleConnections {
+  calendarConnected: boolean
+  gmailConnected: boolean
+  account: string | null
+  lastSyncAt: string | null
+  lastSyncCount: number | null
+}
+
+export async function getGoogleStatus(recipientId: string): Promise<GoogleConnections> {
+  const res = await authFetch('/api/integrations/google', {
+    method: 'POST',
+    body: JSON.stringify({ recipientId, action: 'status' }),
+  })
+  if (!res.ok) throw new Error((await res.text()).slice(0, 200))
+  const body = (await res.json()) as {
+    connections: Array<{
+      provider: string
+      external_account: string | null
+      config: { last_sync_at?: string; last_sync_count?: number } | null
+    }>
+  }
+  const cal = body.connections.find((c) => c.provider === 'google_calendar')
+  const gm = body.connections.find((c) => c.provider === 'gmail')
+  const last = gm?.config?.last_sync_at ?? cal?.config?.last_sync_at ?? null
+  return {
+    calendarConnected: !!cal,
+    gmailConnected: !!gm,
+    account: cal?.external_account || gm?.external_account || null,
+    lastSyncAt: last,
+    lastSyncCount: gm?.config?.last_sync_count ?? null,
+  }
+}
+
+export async function initGoogleOAuth(recipientId: string): Promise<{ url: string }> {
+  const res = await authFetch('/api/integrations/google', {
+    method: 'POST',
+    body: JSON.stringify({ recipientId, action: 'init' }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `init failed (${res.status})`)
+  }
+  return (await res.json()) as { url: string }
+}
+
+export async function syncGoogleCalendar(recipientId: string): Promise<{
+  events: GoogleCalendarEvent[]
+}> {
+  const res = await authFetch('/api/integrations/google', {
+    method: 'POST',
+    body: JSON.stringify({ recipientId, action: 'sync_calendar' }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `Calendar sync failed (${res.status})`)
+  }
+  return (await res.json()) as { events: GoogleCalendarEvent[] }
+}
+
+export async function syncGmail(recipientId: string): Promise<{
+  messageCount: number
+  messages: Array<{ id: string; subject: string; from: string; snippet: string; receivedAt: string | null }>
+}> {
+  const res = await authFetch('/api/integrations/google', {
+    method: 'POST',
+    body: JSON.stringify({ recipientId, action: 'sync_gmail' }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `Gmail sync failed (${res.status})`)
+  }
+  return (await res.json()) as {
+    messageCount: number
+    messages: Array<{ id: string; subject: string; from: string; snippet: string; receivedAt: string | null }>
+  }
+}
+
+export async function disconnectGoogle(recipientId: string): Promise<void> {
+  const res = await authFetch('/api/integrations/google', {
+    method: 'POST',
+    body: JSON.stringify({ recipientId, action: 'disconnect' }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `Disconnect failed (${res.status})`)
+  }
+}
+
+export interface GoogleCalendarEvent {
+  id: string
+  summary?: string
+  description?: string
+  start?: { dateTime?: string; date?: string }
+  end?: { dateTime?: string; date?: string }
+  htmlLink?: string
+  hangoutLink?: string
+  attendees?: Array<{ email?: string; displayName?: string }>
+}

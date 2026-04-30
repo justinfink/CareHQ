@@ -133,29 +133,68 @@ const TOOLS: Anthropic.Tool[] = [
     },
   },
   {
-    name: 'send_sms',
+    name: 'send_message',
     description:
-      'Send an SMS via the recipient\'s connected Twilio number. Use this ONLY for routine messages to team members (family or professional caregivers) the user has already added. For anyone external (clinician, pharmacy, insurer, unknown number) use request_human_approval instead.',
+      'Send a text message to a team member via SMS or WhatsApp through the recipient\'s connected Twilio number. Use this ONLY for routine messages to team members (family or professional caregivers) the user has already added. For anyone external (clinician, pharmacy, insurer, unknown number) use request_human_approval instead.',
     input_schema: {
       type: 'object',
       properties: {
         to_member_id: {
           type: 'string',
           description:
-            'The care_teams.id of the team member to text. Pull from the [Team] context block. Preferred over to_phone.',
+            'The care_teams.id of the team member to message. Pull from the [Team] context block. Preferred over to_phone.',
         },
         to_phone: {
           type: 'string',
           description:
             'E.164 phone number (e.g. +14155551234). Only use if there is no team member id and you are confident the number belongs to a team member.',
         },
+        channel: {
+          type: 'string',
+          enum: ['sms', 'whatsapp'],
+          description: 'Delivery channel. Defaults to sms. Use whatsapp only if the recipient prefers it AND the connected Twilio account has WhatsApp enabled.',
+        },
         body: {
           type: 'string',
           description:
-            'The SMS text. Keep it under 320 chars; identify yourself as CareHQ on first message; include opt-out hint when introducing the agent.',
+            'The message text. Keep it under 320 chars; identify yourself as CareHQ on first message; include opt-out hint when introducing the agent.',
         },
       },
       required: ['body'],
+    },
+  },
+  {
+    name: 'make_voice_call',
+    description:
+      'Place an outbound voice call from the recipient\'s connected Twilio number to a team member. The call plays a text-to-speech message via Twilio TwiML. Use this when SMS is insufficient (urgent, the recipient is hard of hearing, or the user explicitly asked for a call). Voice calls are MORE intrusive than SMS — only use for routine team-member contact. For anyone external, use request_human_approval.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        to_member_id: { type: 'string' },
+        to_phone: { type: 'string' },
+        spoken_message: {
+          type: 'string',
+          description:
+            'The text the agent will speak via TTS. Keep it short, friendly, and identify yourself as CareHQ. Avoid medical jargon.',
+        },
+      },
+      required: ['spoken_message'],
+    },
+  },
+  {
+    name: 'check_drug_interactions',
+    description:
+      'Look up known drug-drug interactions for a list of medications by RxCUI code or by name. Always run this whenever the user is adding a new medication, or asks about safety / interactions / "is it OK to take X with Y". Returns a list of pairs and the severity Group of each interaction.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        medications: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'List of RxCUIs (preferred) or drug names.',
+        },
+      },
+      required: ['medications'],
     },
   },
   {
@@ -273,13 +312,16 @@ async function executeTool(
     return { ok: true, field, operation }
   }
 
-  if (name === 'send_sms') {
-    if (!ctx.recipientId) {
-      return { error: 'No care recipient set up yet.' }
-    }
-    if (!input.body) return { error: 'body is required' }
+  if (name === 'send_message' || name === 'make_voice_call') {
+    if (!ctx.recipientId) return { error: 'No care recipient set up yet.' }
+    const isVoice = name === 'make_voice_call'
+    const channel: 'sms' | 'whatsapp' | 'voice' = isVoice
+      ? 'voice'
+      : (input.channel as 'sms' | 'whatsapp') || 'sms'
+    const body: string = isVoice ? input.spoken_message : input.body
+    if (!body) return { error: isVoice ? 'spoken_message is required' : 'body is required' }
 
-    // Resolve destination
+    // Resolve destination — must be a team member
     let toPhone: string | null = null
     let memberId: string | null = null
     if (input.to_member_id) {
@@ -290,21 +332,17 @@ async function executeTool(
         .eq('care_recipient_id', ctx.recipientId)
         .maybeSingle()
       if (!m) {
-        return {
-          error:
-            'That team member does not exist or is not on this care team. Use request_human_approval instead.',
-        }
+        return { error: 'That team member is not on this care team. Use request_human_approval.' }
       }
       toPhone = (m as any).contact_phone_e164
       memberId = (m as any).id
       if (!toPhone) {
         return {
-          error: `Team member ${(m as any).display_name ?? memberId} has no phone number on file. Update the care team or use request_human_approval.`,
+          error: `Team member ${(m as any).display_name ?? memberId} has no phone number on file.`,
         }
       }
     } else if (input.to_phone) {
       toPhone = input.to_phone
-      // Confirm it belongs to a team member; if not, refuse and require approval
       const { data: m } = await ctx.supabase
         .from('care_teams')
         .select('id')
@@ -313,8 +351,7 @@ async function executeTool(
         .maybeSingle()
       if (!m) {
         return {
-          error:
-            'That phone number is not on this care team. Use request_human_approval for any external contact.',
+          error: 'That phone number is not on this care team. Use request_human_approval.',
         }
       }
       memberId = (m as any).id
@@ -322,33 +359,77 @@ async function executeTool(
       return { error: 'to_member_id or to_phone required' }
     }
 
-    // Look up Twilio integration
-    const { data: integ, error: integErr } = await ctx.supabase
+    const { data: integ } = await ctx.supabase
       .from('integrations')
       .select('external_account, access_token_enc, config')
       .eq('recipient_id', ctx.recipientId)
       .eq('provider', 'twilio')
       .maybeSingle()
-    if (integErr) return { error: integErr.message }
     if (!integ) {
-      return {
-        error:
-          'Twilio is not connected for this recipient. Tell the user to connect Twilio in Settings → Channels.',
-      }
+      return { error: 'Twilio is not connected. Tell the user to set it up in Settings.' }
     }
     const sid = (integ as any).external_account
     const tok = (integ as any).access_token_enc
-    const from = ((integ as any).config?.from as string) || ''
+    const cfg = ((integ as any).config ?? {}) as Record<string, string>
+    const from =
+      channel === 'whatsapp'
+        ? cfg.whatsapp_from || cfg.from
+        : cfg.from
     if (!sid || !tok || !from) {
       return { error: 'Twilio integration is incomplete. Tell the user to reconnect.' }
     }
 
-    // Send via Twilio REST API
     const auth = btoa(`${sid}:${tok}`)
+
+    if (channel === 'voice') {
+      // Twilio Voice via TwiML <Say> wrapped in <Response>. Bin URL not required —
+      // we pass inline TwiML via the Twiml param.
+      const safeBody = body
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+      const twiml = `<Response><Say voice="alice">${safeBody}</Say></Response>`
+      const params = new URLSearchParams({
+        To: toPhone!,
+        From: from,
+        Twiml: twiml,
+      })
+      const callRes = await fetch(
+        `https://api.twilio.com/2010-04-01/Accounts/${sid}/Calls.json`,
+        {
+          method: 'POST',
+          headers: {
+            authorization: `Basic ${auth}`,
+            'content-type': 'application/x-www-form-urlencoded',
+          },
+          body: params.toString(),
+        },
+      )
+      if (!callRes.ok) {
+        const detail = await callRes.text().catch(() => '')
+        return {
+          error: `Twilio rejected the call: ${callRes.status} ${detail.slice(0, 200)}`,
+        }
+      }
+      const call = (await callRes.json()) as { sid?: string; status?: string }
+      await ctx.supabase.from('events').insert({
+        recipient_id: ctx.recipientId,
+        kind: 'message_sent',
+        scope_key: 'event.message',
+        summary: `Voice call to ${toPhone}: ${body.slice(0, 100)}`,
+        payload: { to: toPhone, spoken: body, twilioSid: call.sid, channel: 'voice' },
+        source_channel: 'voice',
+        logged_by_profile_id: ctx.profileId,
+      })
+      return { ok: true, twilioSid: call.sid, status: call.status }
+    }
+
+    const toAddr = channel === 'whatsapp' ? `whatsapp:${toPhone}` : toPhone
+    const fromAddr = channel === 'whatsapp' ? `whatsapp:${from}` : from
     const params = new URLSearchParams({
-      To: toPhone!,
-      From: from,
-      Body: input.body.toString().slice(0, 1200),
+      To: toAddr!,
+      From: fromAddr!,
+      Body: body.slice(0, 1200),
     })
     const sendRes = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`,
@@ -367,27 +448,103 @@ async function executeTool(
     }
     const msg = (await sendRes.json()) as { sid?: string; status?: string }
 
-    // Log to messages + an event row
     await ctx.supabase.from('messages').insert({
       recipient_id: ctx.recipientId,
       member_id: memberId,
       external_address: toPhone,
-      channel: 'sms',
+      channel,
       direction: 'outbound',
-      body: input.body.toString().slice(0, 1200),
+      body: body.slice(0, 1200),
       agent_run_id: ctx.agentRunId,
     })
     await ctx.supabase.from('events').insert({
       recipient_id: ctx.recipientId,
       kind: 'message_sent',
       scope_key: 'event.message',
-      summary: `SMS to ${toPhone}: ${input.body.toString().slice(0, 120)}`,
-      payload: { to: toPhone, body: input.body, twilioSid: msg.sid },
-      source_channel: 'app',
+      summary: `${channel.toUpperCase()} to ${toPhone}: ${body.slice(0, 120)}`,
+      payload: { to: toPhone, body, twilioSid: msg.sid, channel },
+      source_channel: channel === 'whatsapp' ? 'whatsapp' : 'sms',
       logged_by_profile_id: ctx.profileId,
     })
 
-    return { ok: true, twilioSid: msg.sid, status: msg.status }
+    return { ok: true, twilioSid: msg.sid, status: msg.status, channel }
+  }
+
+  if (name === 'check_drug_interactions') {
+    const meds: string[] = (input.medications as string[]) || []
+    if (meds.length < 2) {
+      return { error: 'Need at least 2 medications to check interactions.' }
+    }
+    // Resolve names → rxcuis if needed
+    const rxcuis: string[] = []
+    for (const m of meds) {
+      if (/^\d+$/.test(m)) {
+        rxcuis.push(m)
+      } else {
+        try {
+          const r = await fetch(
+            `https://rxnav.nlm.nih.gov/REST/rxcui.json?name=${encodeURIComponent(m)}&search=2`,
+          )
+          const j = (await r.json()) as { idGroup?: { rxnormId?: string[] } }
+          const id = j?.idGroup?.rxnormId?.[0]
+          if (id) rxcuis.push(id)
+        } catch {
+          // ignore
+        }
+      }
+    }
+    if (rxcuis.length < 2) {
+      return { error: 'Could not resolve enough medications to RxCUIs to check interactions.' }
+    }
+    try {
+      const r = await fetch(
+        `https://rxnav.nlm.nih.gov/REST/interaction/list.json?rxcuis=${rxcuis.join('+')}`,
+      )
+      if (!r.ok) {
+        return { error: `RxNav interaction lookup failed: ${r.status}` }
+      }
+      const j = (await r.json()) as {
+        fullInteractionTypeGroup?: Array<{
+          sourceName?: string
+          fullInteractionType?: Array<{
+            comment?: string
+            minConcept?: Array<{ name?: string }>
+            interactionPair?: Array<{
+              description?: string
+              severity?: string
+              interactionConcept?: Array<{
+                minConceptItem?: { name?: string }
+              }>
+            }>
+          }>
+        }>
+      }
+      const groups = j.fullInteractionTypeGroup ?? []
+      const interactions: Array<{
+        source: string
+        drugA: string
+        drugB: string
+        severity: string
+        description: string
+      }> = []
+      for (const g of groups) {
+        for (const t of g.fullInteractionType ?? []) {
+          for (const p of t.interactionPair ?? []) {
+            const concepts = p.interactionConcept ?? []
+            interactions.push({
+              source: g.sourceName || 'RxNav',
+              drugA: concepts[0]?.minConceptItem?.name || '',
+              drugB: concepts[1]?.minConceptItem?.name || '',
+              severity: p.severity || 'unknown',
+              description: p.description || '',
+            })
+          }
+        }
+      }
+      return { ok: true, interactionCount: interactions.length, interactions }
+    } catch (err) {
+      return { error: `RxNav request failed: ${(err as Error).message}` }
+    }
   }
 
   if (name === 'request_human_approval') {

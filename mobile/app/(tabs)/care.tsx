@@ -13,7 +13,7 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Heart, UserPlus, Plus, X, Pill, Stethoscope, ShieldAlert, Search } from 'lucide-react-native'
+import { Heart, UserPlus, Plus, X, Pill, Stethoscope, ShieldAlert, Search, Mail, Trash2 } from 'lucide-react-native'
 import { useAuth } from '../../src/contexts/AuthContext'
 import {
   getMyPrimaryRecipient,
@@ -28,6 +28,13 @@ import {
   type ConditionSuggestion,
   type ProviderSuggestion,
 } from '../../src/api/catalog'
+import {
+  listPendingInvites,
+  inviteMember,
+  revokeInvite,
+  type MemberRole,
+  type PendingInvite,
+} from '../../src/api/team'
 import { supabase } from '../../src/lib/supabase'
 import { colors, typography, spacing, borderRadius, shadows } from '../../src/theme'
 
@@ -468,11 +475,180 @@ function BrainSection({
   )
 }
 
+function InviteSheet({
+  visible,
+  recipientId,
+  onClose,
+}: {
+  visible: boolean
+  recipientId: string
+  onClose: () => void
+}) {
+  const qc = useQueryClient()
+  const { user } = useAuth()
+  const [email, setEmail] = useState('')
+  const [name, setName] = useState('')
+  const [role, setRole] = useState<MemberRole>('family')
+  const [error, setError] = useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (visible) {
+      setEmail('')
+      setName('')
+      setRole('family')
+      setError(null)
+    }
+  }, [visible])
+
+  const send = useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error('Not signed in')
+      if (!email.trim()) throw new Error('Email is required')
+      return inviteMember({
+        recipientId,
+        email,
+        memberRole: role,
+        displayName: name.trim() || undefined,
+        invitedByProfileId: user.id,
+      })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['team_invites', recipientId] })
+      onClose()
+    },
+    onError: (e: Error) => setError(e.message),
+  })
+
+  const ROLES: { key: MemberRole; label: string }[] = [
+    { key: 'family', label: 'Family' },
+    { key: 'professional', label: 'Professional caregiver' },
+    { key: 'clinician', label: 'Clinician' },
+    { key: 'coordinator', label: 'Coordinator' },
+    { key: 'observer', label: 'Observer (read-only)' },
+  ]
+
+  return (
+    <Modal transparent visible={visible} animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.modalOverlay}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={onClose} />
+        <ScrollView
+          style={styles.modalScrollMax}
+          contentContainerStyle={styles.modalCard}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.modalHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              <UserPlus size={20} color={colors.primary} />
+              <Text style={styles.modalTitle}>Invite a team member</Text>
+            </View>
+            <Pressable onPress={onClose} hitSlop={12}>
+              <X size={20} color={colors.textTertiary} />
+            </Pressable>
+          </View>
+          <Text style={styles.modalIntro}>
+            They'll join automatically when they sign in to CareHQ with this email.
+            Roles map to permission scopes (family sees daily summaries; professional
+            sees the full care log; clinician sees clinical detail; observer is
+            read-only).
+          </Text>
+
+          <Text style={styles.formLabel}>Email</Text>
+          <TextInput
+            value={email}
+            onChangeText={(v) => {
+              setEmail(v)
+              setError(null)
+            }}
+            placeholder="sister@example.com"
+            placeholderTextColor={colors.textTertiary}
+            style={styles.input}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+          />
+          <Text style={styles.formLabel}>Display name (optional)</Text>
+          <TextInput
+            value={name}
+            onChangeText={setName}
+            placeholder="e.g. Diana Elliott"
+            placeholderTextColor={colors.textTertiary}
+            style={styles.input}
+            autoCapitalize="words"
+          />
+          <Text style={styles.formLabel}>Role</Text>
+          <View style={styles.rolePicker}>
+            {ROLES.map((r) => (
+              <Pressable
+                key={r.key}
+                onPress={() => setRole(r.key)}
+                style={({ pressed }) => [
+                  styles.roleChip,
+                  role === r.key && styles.roleChipActive,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.roleChipText,
+                    role === r.key && styles.roleChipTextActive,
+                  ]}
+                >
+                  {r.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+          <Pressable
+            onPress={() => send.mutate()}
+            disabled={!email.trim() || send.isPending}
+            style={({ pressed }) => [
+              styles.primaryBtn,
+              (!email.trim() || send.isPending) && styles.disabled,
+              pressed && styles.pressed,
+            ]}
+          >
+            {send.isPending ? (
+              <ActivityIndicator color={colors.textOnPrimary} size="small" />
+            ) : (
+              <Text style={styles.primaryLabel}>Send invite</Text>
+            )}
+          </Pressable>
+
+          <Text style={styles.helpText}>
+            We don't actually send an email yet — for now the invite waits in the
+            care_team_invites table and is auto-accepted on the invitee's first
+            sign-in. Email/SMS delivery via Resend is on the roadmap.
+          </Text>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </Modal>
+  )
+}
+
 function RecipientView({ recipient }: { recipient: CareRecipient }) {
   const { user } = useAuth()
+  const qc = useQueryClient()
   const [sheet, setSheet] = useState<{ visible: boolean; field: BrainField | null }>({
     visible: false,
     field: null,
+  })
+  const [inviteOpen, setInviteOpen] = useState(false)
+
+  const invitesQuery = useQuery({
+    queryKey: ['team_invites', recipient.id],
+    queryFn: () => listPendingInvites(recipient.id),
+  })
+  const invites = invitesQuery.data ?? []
+
+  const revoke = useMutation({
+    mutationFn: revokeInvite,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['team_invites', recipient.id] })
+    },
   })
 
   const brainQuery = useQuery({
@@ -555,13 +731,24 @@ function RecipientView({ recipient }: { recipient: CareRecipient }) {
         "Mom is allergic to penicillin" — it'll update the brain for you.
       </Text>
 
-      <Text style={styles.sectionTitle}>Care team</Text>
+      <View style={styles.sectionRow}>
+        <Text style={styles.sectionTitle}>Care team</Text>
+        <Pressable
+          onPress={() => setInviteOpen(true)}
+          hitSlop={8}
+          style={({ pressed }) => [styles.addBtn, pressed && styles.pressed]}
+        >
+          <UserPlus size={14} color={colors.primary} />
+          <Text style={styles.addBtnLabel}>Invite</Text>
+        </Pressable>
+      </View>
       {team.length === 0 ? (
         <View style={styles.empty}>
           <UserPlus size={24} color={colors.textTertiary} />
           <Text style={styles.emptyText}>
-            Just you so far. Inviting family members and professional caregivers
-            is coming next.
+            Just you so far. Tap Invite to add family members or professional
+            caregivers — they'll join the care team automatically when they sign
+            up with the email you invited.
           </Text>
         </View>
       ) : (
@@ -578,6 +765,32 @@ function RecipientView({ recipient }: { recipient: CareRecipient }) {
         ))
       )}
 
+      {invites.length > 0 ? (
+        <View style={{ marginTop: spacing.md }}>
+          <Text style={styles.subSectionLabel}>Pending invites</Text>
+          {invites.map((inv: PendingInvite) => (
+            <View key={inv.id} style={styles.row}>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                <Mail size={14} color={colors.textTertiary} style={{ marginRight: spacing.sm, marginTop: 2 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.rowName}>{inv.display_name || inv.email}</Text>
+                  <Text style={styles.rowMeta}>
+                    {inv.email} · {inv.member_role}
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => revoke.mutate(inv.id)}
+                  hitSlop={8}
+                  style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}
+                >
+                  <Trash2 size={14} color={colors.alert} />
+                </Pressable>
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
       {user ? (
         <AddItemSheet
           visible={sheet.visible}
@@ -587,6 +800,11 @@ function RecipientView({ recipient }: { recipient: CareRecipient }) {
           onClose={() => setSheet({ visible: false, field: null })}
         />
       ) : null}
+      <InviteSheet
+        visible={inviteOpen}
+        recipientId={recipient.id}
+        onClose={() => setInviteOpen(false)}
+      />
     </View>
   )
 }
@@ -915,5 +1133,57 @@ const styles = StyleSheet.create({
     color: colors.primary,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
+  },
+  sectionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+    marginTop: spacing.md,
+  },
+  subSectionLabel: {
+    fontFamily: typography.fontFamily.semiBold,
+    fontSize: typography.size.xs,
+    color: colors.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: spacing.sm,
+  },
+  iconBtn: {
+    padding: spacing.sm,
+  },
+  modalScrollMax: { maxHeight: '90%' },
+  rolePicker: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  roleChip: {
+    paddingVertical: 6,
+    paddingHorizontal: spacing.md,
+    borderRadius: 999,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  roleChipActive: {
+    backgroundColor: colors.primaryLight,
+    borderColor: colors.primary,
+  },
+  roleChipText: {
+    fontFamily: typography.fontFamily.medium,
+    fontSize: typography.size.sm,
+    color: colors.textPrimary,
+  },
+  roleChipTextActive: {
+    color: colors.primary,
+  },
+  helpText: {
+    fontFamily: typography.fontFamily.regular,
+    fontSize: typography.size.xs,
+    color: colors.textTertiary,
+    marginTop: spacing.lg,
+    lineHeight: typography.size.xs * typography.lineHeight.relaxed,
   },
 })
