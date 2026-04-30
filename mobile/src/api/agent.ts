@@ -6,6 +6,8 @@ const API_BASE =
 export interface AgentResponse {
   reply: string
   runId: string | null
+  toolsCalled?: string[]
+  stopReason?: string | null
 }
 
 /**

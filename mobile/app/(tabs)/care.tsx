@@ -7,10 +7,13 @@ import {
   ScrollView,
   StyleSheet,
   ActivityIndicator,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Heart, UserPlus } from 'lucide-react-native'
+import { Heart, UserPlus, Plus, X, Pill, Stethoscope, ShieldAlert } from 'lucide-react-native'
 import { useAuth } from '../../src/contexts/AuthContext'
 import {
   getMyPrimaryRecipient,
@@ -20,11 +23,13 @@ import {
 import { supabase } from '../../src/lib/supabase'
 import { colors, typography, spacing, borderRadius, shadows } from '../../src/theme'
 
+type BrainField = 'medications' | 'conditions' | 'allergies' | 'providers'
+
 interface BrainRow {
-  conditions: unknown[]
-  medications: unknown[]
-  allergies: unknown[]
-  providers: unknown[]
+  conditions: any[]
+  medications: any[]
+  allergies: any[]
+  providers: any[]
 }
 
 function CreateRecipientForm({
@@ -84,7 +89,229 @@ function CreateRecipientForm({
   )
 }
 
+interface AddItemSheetProps {
+  visible: boolean
+  field: BrainField | null
+  recipientId: string
+  ownerId: string
+  onClose: () => void
+}
+
+const FIELD_CONFIG: Record<
+  BrainField,
+  { title: string; placeholder: string; primaryKey: string; extraFields?: Array<{ key: string; placeholder: string }> }
+> = {
+  medications: {
+    title: 'Add medication',
+    placeholder: 'e.g. Lisinopril',
+    primaryKey: 'name',
+    extraFields: [
+      { key: 'dose', placeholder: 'Dose (e.g. 10mg)' },
+      { key: 'schedule', placeholder: 'Schedule (e.g. morning, with food)' },
+    ],
+  },
+  conditions: {
+    title: 'Add condition',
+    placeholder: 'e.g. Hypertension',
+    primaryKey: 'name',
+    extraFields: [{ key: 'notes', placeholder: 'Notes (optional)' }],
+  },
+  allergies: {
+    title: 'Add allergy',
+    placeholder: 'e.g. Penicillin',
+    primaryKey: 'name',
+    extraFields: [{ key: 'severity', placeholder: 'Severity (e.g. anaphylactic)' }],
+  },
+  providers: {
+    title: 'Add provider',
+    placeholder: 'e.g. Dr. Kapoor',
+    primaryKey: 'name',
+    extraFields: [
+      { key: 'specialty', placeholder: 'Specialty (e.g. Neurology)' },
+      { key: 'phone', placeholder: 'Phone (optional)' },
+      { key: 'organization', placeholder: 'Organization (optional)' },
+    ],
+  },
+}
+
+function AddItemSheet({ visible, field, recipientId, ownerId, onClose }: AddItemSheetProps) {
+  const qc = useQueryClient()
+  const [primary, setPrimary] = useState('')
+  const [extras, setExtras] = useState<Record<string, string>>({})
+  const [error, setError] = useState<string | null>(null)
+
+  const config = field ? FIELD_CONFIG[field] : null
+
+  React.useEffect(() => {
+    if (visible) {
+      setPrimary('')
+      setExtras({})
+      setError(null)
+    }
+  }, [visible])
+
+  const append = useMutation({
+    mutationFn: async () => {
+      if (!field || !primary.trim()) throw new Error('Name is required')
+      // Read current
+      const { data, error: readErr } = await supabase
+        .from('recipient_brain')
+        .select(field)
+        .eq('recipient_id', recipientId)
+        .maybeSingle()
+      if (readErr) throw readErr
+      const current = (data as any)?.[field]
+      const arr = Array.isArray(current) ? current : []
+
+      const item: Record<string, string> = { [config!.primaryKey]: primary.trim() }
+      for (const f of config!.extraFields ?? []) {
+        const v = extras[f.key]?.trim()
+        if (v) item[f.key] = v
+      }
+
+      const { error: writeErr } = await supabase
+        .from('recipient_brain')
+        .upsert(
+          {
+            recipient_id: recipientId,
+            [field]: [...arr, item],
+            updated_by: ownerId,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'recipient_id' },
+        )
+      if (writeErr) throw writeErr
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['recipient_brain', recipientId] })
+      onClose()
+    },
+    onError: (err: Error) => setError(err.message),
+  })
+
+  if (!field || !config) return null
+
+  return (
+    <Modal
+      transparent
+      visible={visible}
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.modalOverlay}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={onClose} />
+        <View style={styles.modalCard}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>{config.title}</Text>
+            <Pressable onPress={onClose} hitSlop={12}>
+              <X size={20} color={colors.textTertiary} />
+            </Pressable>
+          </View>
+          <TextInput
+            value={primary}
+            onChangeText={(v) => {
+              setPrimary(v)
+              setError(null)
+            }}
+            placeholder={config.placeholder}
+            placeholderTextColor={colors.textTertiary}
+            style={styles.input}
+            autoCapitalize="words"
+          />
+          {(config.extraFields ?? []).map((f) => (
+            <TextInput
+              key={f.key}
+              value={extras[f.key] ?? ''}
+              onChangeText={(v) => setExtras((e) => ({ ...e, [f.key]: v }))}
+              placeholder={f.placeholder}
+              placeholderTextColor={colors.textTertiary}
+              style={styles.input}
+            />
+          ))}
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+          <Pressable
+            onPress={() => append.mutate()}
+            disabled={!primary.trim() || append.isPending}
+            style={({ pressed }) => [
+              styles.primaryBtn,
+              (!primary.trim() || append.isPending) && styles.disabled,
+              pressed && styles.pressed,
+            ]}
+          >
+            {append.isPending ? (
+              <ActivityIndicator color={colors.textOnPrimary} size="small" />
+            ) : (
+              <Text style={styles.primaryLabel}>Save</Text>
+            )}
+          </Pressable>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  )
+}
+
+function BrainSection({
+  field,
+  label,
+  icon: Icon,
+  items,
+  onAdd,
+}: {
+  field: BrainField
+  label: string
+  icon: React.ComponentType<{ size: number; color: string }>
+  items: any[]
+  onAdd: (f: BrainField) => void
+}) {
+  return (
+    <View style={styles.brainSection}>
+      <View style={styles.brainSectionHeader}>
+        <View style={styles.brainSectionTitleRow}>
+          <Icon size={16} color={colors.primary} />
+          <Text style={styles.brainSectionTitle}>{label}</Text>
+          <Text style={styles.brainSectionCount}>{items?.length ?? 0}</Text>
+        </View>
+        <Pressable
+          onPress={() => onAdd(field)}
+          hitSlop={8}
+          style={({ pressed }) => [styles.addBtn, pressed && styles.pressed]}
+        >
+          <Plus size={14} color={colors.primary} />
+          <Text style={styles.addBtnLabel}>Add</Text>
+        </Pressable>
+      </View>
+      {(items ?? []).length === 0 ? (
+        <Text style={styles.brainEmpty}>None added yet.</Text>
+      ) : (
+        items.map((item, i) => (
+          <View key={i} style={styles.brainItem}>
+            <Text style={styles.brainItemName}>
+              {item.name || JSON.stringify(item)}
+            </Text>
+            {Object.entries(item)
+              .filter(([k]) => k !== 'name')
+              .map(([k, v]) => (
+                <Text key={k} style={styles.brainItemDetail}>
+                  {k}: {String(v)}
+                </Text>
+              ))}
+          </View>
+        ))
+      )}
+    </View>
+  )
+}
+
 function RecipientView({ recipient }: { recipient: CareRecipient }) {
+  const { user } = useAuth()
+  const [sheet, setSheet] = useState<{ visible: boolean; field: BrainField | null }>({
+    visible: false,
+    field: null,
+  })
+
   const brainQuery = useQuery({
     queryKey: ['recipient_brain', recipient.id],
     queryFn: async () => {
@@ -113,13 +340,6 @@ function RecipientView({ recipient }: { recipient: CareRecipient }) {
   const team = teamQuery.data ?? []
   const brain = brainQuery.data
 
-  const counts = {
-    conditions: brain?.conditions?.length ?? 0,
-    medications: brain?.medications?.length ?? 0,
-    allergies: brain?.allergies?.length ?? 0,
-    providers: brain?.providers?.length ?? 0,
-  }
-
   return (
     <View>
       <View style={styles.headerCard}>
@@ -127,34 +347,49 @@ function RecipientView({ recipient }: { recipient: CareRecipient }) {
         <View style={{ flex: 1 }}>
           <Text style={styles.recipientName}>{recipient.name}</Text>
           <Text style={styles.recipientMeta}>
-            Care recipient · added {new Date(recipient.created_at ?? '').toLocaleDateString()}
+            Care recipient · added{' '}
+            {new Date(recipient.created_at ?? '').toLocaleDateString()}
           </Text>
         </View>
       </View>
 
       <Text style={styles.sectionTitle}>Brain</Text>
-      <View style={styles.gridCard}>
-        <View style={styles.statRow}>
-          <Text style={styles.statLabel}>Conditions</Text>
-          <Text style={styles.statValue}>{counts.conditions}</Text>
-        </View>
-        <View style={styles.statRow}>
-          <Text style={styles.statLabel}>Medications</Text>
-          <Text style={styles.statValue}>{counts.medications}</Text>
-        </View>
-        <View style={styles.statRow}>
-          <Text style={styles.statLabel}>Allergies</Text>
-          <Text style={styles.statValue}>{counts.allergies}</Text>
-        </View>
-        <View style={styles.statRow}>
-          <Text style={styles.statLabel}>Providers</Text>
-          <Text style={styles.statValue}>{counts.providers}</Text>
-        </View>
+      <View style={styles.brainCard}>
+        <BrainSection
+          field="medications"
+          label="Medications"
+          icon={Pill}
+          items={brain?.medications ?? []}
+          onAdd={(f) => setSheet({ visible: true, field: f })}
+        />
+        <View style={styles.divider} />
+        <BrainSection
+          field="conditions"
+          label="Conditions"
+          icon={Heart}
+          items={brain?.conditions ?? []}
+          onAdd={(f) => setSheet({ visible: true, field: f })}
+        />
+        <View style={styles.divider} />
+        <BrainSection
+          field="allergies"
+          label="Allergies"
+          icon={ShieldAlert}
+          items={brain?.allergies ?? []}
+          onAdd={(f) => setSheet({ visible: true, field: f })}
+        />
+        <View style={styles.divider} />
+        <BrainSection
+          field="providers"
+          label="Providers"
+          icon={Stethoscope}
+          items={brain?.providers ?? []}
+          onAdd={(f) => setSheet({ visible: true, field: f })}
+        />
       </View>
       <Text style={styles.helper}>
-        Detailed editing of conditions, meds, and providers is coming next. For now
-        the agent can record updates conversationally — say "add lisinopril 10mg
-        morning" in the home composer.
+        You can also tell the agent on Home: "Add lisinopril 10mg morning" or
+        "Mom is allergic to penicillin" — it'll update the brain for you.
       </Text>
 
       <Text style={styles.sectionTitle}>Care team</Text>
@@ -179,6 +414,16 @@ function RecipientView({ recipient }: { recipient: CareRecipient }) {
           </View>
         ))
       )}
+
+      {user ? (
+        <AddItemSheet
+          visible={sheet.visible}
+          field={sheet.field}
+          recipientId={recipient.id}
+          ownerId={user.id}
+          onClose={() => setSheet({ visible: false, field: null })}
+        />
+      ) : null}
     </View>
   )
 }
@@ -299,29 +544,78 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     marginTop: spacing.md,
   },
-  gridCard: {
+  brainCard: {
     backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
     ...shadows.sm,
   },
-  statRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  brainSection: {
     paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
   },
-  statLabel: {
-    fontFamily: typography.fontFamily.regular,
-    fontSize: typography.size.md,
-    color: colors.textSecondary,
+  brainSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  statValue: {
-    fontFamily: typography.fontFamily.semiBold,
+  brainSectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  brainSectionTitle: {
+    fontFamily: typography.fontFamily.medium,
     fontSize: typography.size.md,
     color: colors.textPrimary,
+  },
+  brainSectionCount: {
+    fontFamily: typography.fontFamily.regular,
+    fontSize: typography.size.xs,
+    color: colors.textTertiary,
+    marginLeft: 2,
+  },
+  addBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.primaryLight,
+  },
+  addBtnLabel: {
+    fontFamily: typography.fontFamily.medium,
+    fontSize: typography.size.xs,
+    color: colors.primary,
+  },
+  brainEmpty: {
+    fontFamily: typography.fontFamily.regular,
+    fontSize: typography.size.sm,
+    color: colors.textTertiary,
+    marginTop: spacing.xs,
+  },
+  brainItem: {
+    backgroundColor: colors.background,
+    padding: spacing.sm,
+    borderRadius: borderRadius.sm,
+    marginTop: spacing.xs,
+  },
+  brainItemName: {
+    fontFamily: typography.fontFamily.medium,
+    fontSize: typography.size.sm,
+    color: colors.textPrimary,
+  },
+  brainItemDetail: {
+    fontFamily: typography.fontFamily.regular,
+    fontSize: typography.size.xs,
+    color: colors.textSecondary,
+    marginTop: 2,
+    textTransform: 'capitalize',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.borderLight,
+    marginVertical: spacing.sm,
   },
   helper: {
     fontFamily: typography.fontFamily.regular,
@@ -364,5 +658,32 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
     marginTop: spacing.xs,
     textTransform: 'capitalize',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  modalCard: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: borderRadius.xl,
+    borderTopRightRadius: borderRadius.xl,
+    padding: spacing.xl,
+    paddingBottom: spacing['3xl'],
+    ...shadows.lg,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  modalTitle: {
+    fontFamily: typography.fontFamily.semiBold,
+    fontSize: typography.size.lg,
+    color: colors.textPrimary,
   },
 })

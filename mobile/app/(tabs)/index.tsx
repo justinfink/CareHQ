@@ -24,6 +24,19 @@ import { colors, typography, spacing, borderRadius, shadows } from '../../src/th
 const greetingForHour = (h: number) =>
   h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
 
+const toolLabel = (name: string): string => {
+  switch (name) {
+    case 'log_event':
+      return 'Logged an event'
+    case 'update_recipient_brain':
+      return 'Updated the brain'
+    case 'request_human_approval':
+      return 'Queued for your approval'
+    default:
+      return name
+  }
+}
+
 export default function StreamScreen() {
   const router = useRouter()
   const { user } = useAuth()
@@ -51,6 +64,7 @@ export default function StreamScreen() {
 
   const [composer, setComposer] = useState('')
   const [agentReply, setAgentReply] = useState<string | null>(null)
+  const [agentTools, setAgentTools] = useState<string[]>([])
   const [agentError, setAgentError] = useState<string | null>(null)
 
   const askMutation = useMutation({
@@ -59,11 +73,17 @@ export default function StreamScreen() {
     },
     onSuccess: (res) => {
       setAgentReply(res.reply)
+      setAgentTools(res.toolsCalled ?? [])
       setAgentError(null)
+      // The agent may have written events / brain updates / approvals — refetch.
+      qc.invalidateQueries({ queryKey: ['events', recipient?.id] })
+      qc.invalidateQueries({ queryKey: ['recipient_brain', recipient?.id] })
+      qc.invalidateQueries({ queryKey: ['agent_approvals', recipient?.id] })
     },
     onError: (err: Error) => {
       setAgentError(err.message)
       setAgentReply(null)
+      setAgentTools([])
     },
   })
 
@@ -184,6 +204,15 @@ export default function StreamScreen() {
             <View style={styles.agentReply}>
               <Text style={styles.agentReplyLabel}>Agent</Text>
               <Text style={styles.agentReplyText}>{agentReply}</Text>
+              {agentTools.length > 0 ? (
+                <View style={styles.toolBadgeRow}>
+                  {agentTools.map((t, i) => (
+                    <View key={i} style={styles.toolBadge}>
+                      <Text style={styles.toolBadgeText}>{toolLabel(t)}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
             </View>
           ) : null}
           {agentError ? (
@@ -359,6 +388,25 @@ const styles = StyleSheet.create({
     fontSize: typography.size.md,
     color: colors.textPrimary,
     lineHeight: typography.size.md * typography.lineHeight.relaxed,
+  },
+  toolBadgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+  },
+  toolBadge: {
+    backgroundColor: colors.surface,
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  toolBadgeText: {
+    fontFamily: typography.fontFamily.medium,
+    fontSize: typography.size.xs,
+    color: colors.primary,
   },
   agentError: {
     marginTop: spacing.md,
