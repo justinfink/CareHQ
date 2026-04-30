@@ -1,9 +1,10 @@
 import React from 'react'
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native'
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Pressable } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { format, differenceInDays, parseISO } from 'date-fns'
-import { AlertTriangle, Clock, Flag, Mic } from 'lucide-react-native'
+import { AlertTriangle, Clock, Flag, Mic, LogOut } from 'lucide-react-native'
 import { useAppStore } from '../../src/store/useAppStore'
+import { useAuth } from '../../src/contexts/AuthContext'
 import Card from '../../src/components/Card'
 import ShiftCard from '../../src/components/ShiftCard'
 import EventCard from '../../src/components/EventCard'
@@ -11,6 +12,7 @@ import { colors, typography, spacing, borderRadius, shadows } from '../../src/th
 
 export default function DashboardScreen() {
   const { user, events, insights } = useAppStore()
+  const { signOut, user: authUser } = useAuth()
   const today = new Date()
   const daysSinceCareStart = differenceInDays(today, parseISO(user.careRecipient.startedCare))
   const dayName = format(today, 'EEEE, MMMM d')
@@ -35,10 +37,26 @@ export default function DashboardScreen() {
       >
         {/* Greeting */}
         <View style={styles.greetingSection}>
-          <Text style={styles.greeting}>{greeting}, {user.firstName}.</Text>
-          <Text style={styles.subtitle}>
-            {user.careRecipient.firstName}'s care {'\u2014'} Day {daysSinceCareStart.toLocaleString()} {'\u00B7'} {dayName}
-          </Text>
+          <View style={styles.greetingRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.greeting}>
+                {greeting}, {authUser?.user_metadata?.full_name?.split(' ')[0] || user.firstName}.
+              </Text>
+              <Text style={styles.subtitle}>
+                {user.careRecipient.firstName}'s care {'—'} Day {daysSinceCareStart.toLocaleString()} {'·'} {dayName}
+              </Text>
+            </View>
+            {authUser ? (
+              <Pressable
+                onPress={() => void signOut()}
+                hitSlop={12}
+                style={({ pressed }) => [styles.signOutBtn, pressed && { opacity: 0.6 }]}
+                accessibilityLabel="Sign out"
+              >
+                <LogOut size={18} color={colors.textTertiary} />
+              </Pressable>
+            ) : null}
+          </View>
         </View>
 
         {/* Alert Banner */}
@@ -144,6 +162,15 @@ const styles = StyleSheet.create({
   },
   greetingSection: {
     marginBottom: spacing['2xl'],
+  },
+  greetingRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+  },
+  signOutBtn: {
+    padding: spacing.sm,
+    borderRadius: borderRadius.md,
   },
   greeting: {
     fontFamily: typography.fontFamily.bold,
