@@ -1,9 +1,15 @@
 import React from 'react'
-import { Tabs } from 'expo-router'
+import { Tabs, Redirect } from 'expo-router'
 import { LayoutDashboard, Users, Mic, CalendarDays, Sparkles } from 'lucide-react-native'
 import { colors, typography } from '../../src/theme'
+import { useAuth } from '../../src/contexts/AuthContext'
 
 export default function TabLayout() {
+  const { session, loading } = useAuth()
+
+  if (loading) return null
+  if (!session) return <Redirect href="/auth" />
+
   return (
     <Tabs
       screenOptions={{

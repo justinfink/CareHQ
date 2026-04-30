@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect } from 'react'
 import { View, StyleSheet } from 'react-native'
 import { Slot, SplashScreen } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
@@ -11,6 +11,7 @@ import {
 } from '@expo-google-fonts/plus-jakarta-sans'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { colors } from '../src/theme'
+import { AuthProvider } from '../src/contexts/AuthContext'
 
 // Prevent splash from auto-hiding
 SplashScreen.preventAutoHideAsync()
@@ -47,10 +48,12 @@ export default function RootLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <View style={styles.container} onLayout={onLayoutRootView}>
-        <StatusBar style="dark" backgroundColor={colors.background} />
-        <Slot />
-      </View>
+      <AuthProvider>
+        <View style={styles.container} onLayout={onLayoutRootView}>
+          <StatusBar style="dark" backgroundColor={colors.background} />
+          <Slot />
+        </View>
+      </AuthProvider>
     </QueryClientProvider>
   )
 }
