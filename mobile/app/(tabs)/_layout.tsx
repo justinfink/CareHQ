@@ -1,6 +1,6 @@
 import React from 'react'
 import { Tabs, Redirect } from 'expo-router'
-import { LayoutDashboard, Users, Mic, CalendarDays, Sparkles } from 'lucide-react-native'
+import { Home, Inbox, CalendarDays, Heart, Settings } from 'lucide-react-native'
 import { colors, typography } from '../../src/theme'
 import { useAuth } from '../../src/contexts/AuthContext'
 
@@ -34,46 +34,36 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Dashboard',
-          tabBarIcon: ({ color, size }) => (
-            <LayoutDashboard size={size} color={color} />
-          ),
+          title: 'Home',
+          tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
         }}
       />
       <Tabs.Screen
-        name="team"
+        name="inbox"
         options={{
-          title: 'Care Team',
-          tabBarIcon: ({ color, size }) => (
-            <Users size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="log"
-        options={{
-          title: 'Voice Log',
-          tabBarIcon: ({ color, size }) => (
-            <Mic size={size} color={color} />
-          ),
+          title: 'Inbox',
+          tabBarIcon: ({ color, size }) => <Inbox size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="calendar"
         options={{
           title: 'Calendar',
-          tabBarIcon: ({ color, size }) => (
-            <CalendarDays size={size} color={color} />
-          ),
+          tabBarIcon: ({ color, size }) => <CalendarDays size={size} color={color} />,
         }}
       />
       <Tabs.Screen
-        name="insights"
+        name="care"
         options={{
-          title: 'Insights',
-          tabBarIcon: ({ color, size }) => (
-            <Sparkles size={size} color={color} />
-          ),
+          title: 'Care',
+          tabBarIcon: ({ color, size }) => <Heart size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: 'Settings',
+          tabBarIcon: ({ color, size }) => <Settings size={size} color={color} />,
         }}
       />
     </Tabs>

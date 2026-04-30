@@ -1,32 +1,102 @@
-import React from 'react'
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Pressable } from 'react-native'
+import React, { useState, useCallback } from 'react'
+import {
+  View,
+  Text,
+  TextInput,
+  ScrollView,
+  StyleSheet,
+  Pressable,
+  ActivityIndicator,
+  RefreshControl,
+} from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { format, differenceInDays, parseISO } from 'date-fns'
-import { AlertTriangle, Clock, Flag, Mic, LogOut } from 'lucide-react-native'
-import { useAppStore } from '../../src/store/useAppStore'
-import { useAuth } from '../../src/contexts/AuthContext'
+import { format } from 'date-fns'
+import { useRouter } from 'expo-router'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Sparkles, Send, MessageSquarePlus, ChevronRight } from 'lucide-react-native'
 import Card from '../../src/components/Card'
-import ShiftCard from '../../src/components/ShiftCard'
-import EventCard from '../../src/components/EventCard'
+import { useAuth } from '../../src/contexts/AuthContext'
+import { askAgent } from '../../src/api/agent'
+import { getMyPrimaryRecipient } from '../../src/api/recipient'
+import { listRecentEvents, logNoteEvent } from '../../src/api/events'
 import { colors, typography, spacing, borderRadius, shadows } from '../../src/theme'
 
-export default function DashboardScreen() {
-  const { user, events, insights } = useAppStore()
-  const { signOut, user: authUser } = useAuth()
+const greetingForHour = (h: number) =>
+  h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
+
+export default function StreamScreen() {
+  const router = useRouter()
+  const { user } = useAuth()
+  const qc = useQueryClient()
   const today = new Date()
-  const daysSinceCareStart = differenceInDays(today, parseISO(user.careRecipient.startedCare))
-  const dayName = format(today, 'EEEE, MMMM d')
+  const greeting = greetingForHour(today.getHours())
+  const firstName =
+    (user?.user_metadata?.full_name as string | undefined)?.split(' ')[0] ||
+    user?.email?.split('@')[0] ||
+    'there'
 
-  const hour = today.getHours()
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+  const recipientQuery = useQuery({
+    queryKey: ['recipient', user?.id],
+    queryFn: () => (user ? getMyPrimaryRecipient(user.id) : Promise.resolve(null)),
+    enabled: !!user,
+  })
+  const recipient = recipientQuery.data ?? null
 
-  const alertInsights = insights.filter((i) => i.severity === 'alert' && !i.resolved)
-  const flaggedCount = events.filter((e) => e.flagged).length
-  const recentFive = events.slice(0, 5)
+  const eventsQuery = useQuery({
+    queryKey: ['events', recipient?.id],
+    queryFn: () => (recipient ? listRecentEvents(recipient.id) : Promise.resolve([])),
+    enabled: !!recipient,
+  })
+  const events = eventsQuery.data ?? []
 
-  // Determine current shift status
-  const isMariaShift = hour >= 8 && hour < 12
-  const isJamesShift = hour >= 12 && hour < 16
+  const [composer, setComposer] = useState('')
+  const [agentReply, setAgentReply] = useState<string | null>(null)
+  const [agentError, setAgentError] = useState<string | null>(null)
+
+  const askMutation = useMutation({
+    mutationFn: async (message: string) => {
+      return askAgent({ message, recipientId: recipient?.id })
+    },
+    onSuccess: (res) => {
+      setAgentReply(res.reply)
+      setAgentError(null)
+    },
+    onError: (err: Error) => {
+      setAgentError(err.message)
+      setAgentReply(null)
+    },
+  })
+
+  const noteMutation = useMutation({
+    mutationFn: async (body: string) => {
+      if (!recipient) throw new Error('No care recipient yet')
+      if (!user) throw new Error('Not signed in')
+      return logNoteEvent({
+        recipientId: recipient.id,
+        body,
+        loggedByProfileId: user.id,
+      })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['events', recipient?.id] })
+    },
+  })
+
+  const handleAsk = useCallback(() => {
+    const msg = composer.trim()
+    if (!msg) return
+    askMutation.mutate(msg)
+    setComposer('')
+  }, [composer, askMutation])
+
+  const handleLog = useCallback(() => {
+    const msg = composer.trim()
+    if (!msg) return
+    noteMutation.mutate(msg)
+    setComposer('')
+  }, [composer, noteMutation])
+
+  const refreshing = eventsQuery.isFetching || recipientQuery.isFetching
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -34,113 +104,155 @@ export default function DashboardScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              recipientQuery.refetch()
+              eventsQuery.refetch()
+            }}
+            tintColor={colors.primary}
+          />
+        }
+        keyboardShouldPersistTaps="handled"
       >
-        {/* Greeting */}
-        <View style={styles.greetingSection}>
-          <View style={styles.greetingRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.greeting}>
-                {greeting}, {authUser?.user_metadata?.full_name?.split(' ')[0] || user.firstName}.
-              </Text>
-              <Text style={styles.subtitle}>
-                {user.careRecipient.firstName}'s care {'—'} Day {daysSinceCareStart.toLocaleString()} {'·'} {dayName}
-              </Text>
-            </View>
-            {authUser ? (
-              <Pressable
-                onPress={() => void signOut()}
-                hitSlop={12}
-                style={({ pressed }) => [styles.signOutBtn, pressed && { opacity: 0.6 }]}
-                accessibilityLabel="Sign out"
-              >
-                <LogOut size={18} color={colors.textTertiary} />
-              </Pressable>
-            ) : null}
-          </View>
-        </View>
+        <Text style={styles.greeting}>
+          {greeting}, {firstName}.
+        </Text>
+        <Text style={styles.subtitle}>
+          {recipient
+            ? `${recipient.name}'s care · ${format(today, 'EEEE, MMMM d')}`
+            : format(today, 'EEEE, MMMM d')}
+        </Text>
 
-        {/* Alert Banner */}
-        {alertInsights.length > 0 && (
-          <TouchableOpacity activeOpacity={0.8} style={styles.alertBanner}>
-            <AlertTriangle size={18} color={colors.textOnPrimary} />
-            <View style={styles.alertContent}>
-              <Text style={styles.alertTitle}>{alertInsights[0].title}</Text>
-              <Text style={styles.alertSummary} numberOfLines={2}>
-                {alertInsights[0].summary}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        )}
-
-        {/* Care Status */}
-        <Card style={styles.statusCard}>
-          <Text style={styles.sectionTitle}>Care Status</Text>
-          <View style={styles.statusGrid}>
-            <View style={styles.statusItem}>
-              <View style={[styles.statusIcon, { backgroundColor: colors.primaryLight }]}>
-                <Clock size={16} color={colors.primary} />
-              </View>
-              <Text style={styles.statusLabel}>Current shift</Text>
-              <Text style={styles.statusValue}>
-                {isMariaShift
-                  ? 'Maria (8am\u201312pm)'
-                  : isJamesShift
-                  ? 'James (12pm\u20134pm)'
-                  : 'No active shift'}
-              </Text>
-            </View>
-            <View style={styles.statusItem}>
-              <View style={[styles.statusIcon, { backgroundColor: colors.primaryLight }]}>
-                <Clock size={16} color={colors.primary} />
-              </View>
-              <Text style={styles.statusLabel}>Last event</Text>
-              <Text style={styles.statusValue} numberOfLines={1}>
-                {events[0]?.summary.substring(0, 30) || 'None'}
-              </Text>
-            </View>
-            <View style={styles.statusItem}>
-              <View style={[styles.statusIcon, { backgroundColor: colors.alertLight }]}>
-                <Flag size={16} color={colors.alert} />
-              </View>
-              <Text style={styles.statusLabel}>Flags</Text>
-              <Text style={[styles.statusValue, flaggedCount > 0 && { color: colors.alert }]}>
-                {flaggedCount} flagged
-              </Text>
-            </View>
+        {/* Composer */}
+        <Card style={styles.composer} padded>
+          <View style={styles.composerHeader}>
+            <Sparkles size={16} color={colors.primary} />
+            <Text style={styles.composerLabel}>Ask the agent or log something</Text>
           </View>
+          <TextInput
+            value={composer}
+            onChangeText={setComposer}
+            placeholder={
+              recipient
+                ? `e.g. "How is ${recipient.name} doing this week?" or "Mom skipped her morning meds"`
+                : `e.g. "How does CareHQ work?" — set up a care recipient under Care to log events`
+            }
+            placeholderTextColor={colors.textTertiary}
+            multiline
+            style={styles.composerInput}
+            editable={!askMutation.isPending && !noteMutation.isPending}
+          />
+          <View style={styles.composerActions}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.secondaryBtn,
+                (!composer.trim() || !recipient) && styles.disabled,
+                pressed && styles.pressed,
+              ]}
+              onPress={handleLog}
+              disabled={
+                !composer.trim() || !recipient || noteMutation.isPending
+              }
+            >
+              <MessageSquarePlus size={16} color={colors.textPrimary} />
+              <Text style={styles.secondaryLabel}>
+                {noteMutation.isPending ? 'Saving…' : 'Log as note'}
+              </Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [
+                styles.primaryBtn,
+                !composer.trim() && styles.disabled,
+                pressed && styles.pressed,
+              ]}
+              onPress={handleAsk}
+              disabled={!composer.trim() || askMutation.isPending}
+            >
+              {askMutation.isPending ? (
+                <ActivityIndicator color={colors.textOnPrimary} size="small" />
+              ) : (
+                <>
+                  <Send size={16} color={colors.textOnPrimary} />
+                  <Text style={styles.primaryLabel}>Ask</Text>
+                </>
+              )}
+            </Pressable>
+          </View>
+          {agentReply ? (
+            <View style={styles.agentReply}>
+              <Text style={styles.agentReplyLabel}>Agent</Text>
+              <Text style={styles.agentReplyText}>{agentReply}</Text>
+            </View>
+          ) : null}
+          {agentError ? (
+            <View style={styles.agentError}>
+              <Text style={styles.agentErrorText}>{agentError}</Text>
+            </View>
+          ) : null}
+          {noteMutation.isError ? (
+            <View style={styles.agentError}>
+              <Text style={styles.agentErrorText}>
+                Couldn't log: {(noteMutation.error as Error).message}
+              </Text>
+            </View>
+          ) : null}
         </Card>
 
-        {/* Today's Shifts */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Today's Shifts</Text>
-          <ShiftCard
-            name="Maria Reyes"
-            role="Home Health Aide"
-            time="8:00 AM \u2013 12:00 PM"
-            isActive={isMariaShift}
-            color={colors.primary}
-          />
-          <ShiftCard
-            name="James Okonkwo"
-            role="Home Health Aide"
-            time="12:00 PM \u2013 4:00 PM"
-            isActive={isJamesShift}
-            color={colors.accent}
-          />
-        </View>
+        {/* Onboarding nudge if no recipient yet */}
+        {!recipient && !recipientQuery.isLoading ? (
+          <Pressable
+            onPress={() => router.push('/care')}
+            style={({ pressed }) => [styles.nudgeCard, pressed && styles.pressed]}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={styles.nudgeTitle}>Set up your care recipient</Text>
+              <Text style={styles.nudgeBody}>
+                Add the person you're caring for so the agent can keep track of meds,
+                providers, and what's been happening.
+              </Text>
+            </View>
+            <ChevronRight size={20} color={colors.textTertiary} />
+          </Pressable>
+        ) : null}
 
-        {/* Quick Log CTA */}
-        <TouchableOpacity activeOpacity={0.8} style={styles.quickLogButton}>
-          <Mic size={20} color={colors.textOnPrimary} />
-          <Text style={styles.quickLogText}>Quick Log</Text>
-        </TouchableOpacity>
-
-        {/* Recent Activity */}
+        {/* Timeline */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Activity</Text>
-          {recentFive.map((event) => (
-            <EventCard key={event.id} event={event} />
-          ))}
+          <Text style={styles.sectionTitle}>Recent activity</Text>
+          {!recipient ? (
+            <View style={styles.empty}>
+              <Text style={styles.emptyText}>
+                Once you set up a care recipient and start logging, what's been
+                happening will appear here.
+              </Text>
+            </View>
+          ) : eventsQuery.isLoading ? (
+            <View style={styles.empty}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : events.length === 0 ? (
+            <View style={styles.empty}>
+              <Text style={styles.emptyText}>
+                Nothing has been logged yet. Use the composer above to log a note
+                or ask the agent something.
+              </Text>
+            </View>
+          ) : (
+            events.map((e) => (
+              <View key={e.id} style={styles.eventRow}>
+                <View style={styles.eventDot} />
+                <View style={styles.eventBody}>
+                  <Text style={styles.eventSummary}>{e.summary || e.kind}</Text>
+                  <Text style={styles.eventMeta}>
+                    {format(new Date(e.occurred_at), "MMM d 'at' h:mm a")}
+                    {' · '}
+                    {e.kind.replace(/_/g, ' ')}
+                  </Text>
+                </View>
+              </View>
+            ))
+          )}
         </View>
 
         <View style={styles.bottomSpacer} />
@@ -150,122 +262,191 @@ export default function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scroll: {
-    flex: 1,
-  },
+  safe: { flex: 1, backgroundColor: colors.background },
+  scroll: { flex: 1 },
   scrollContent: {
     padding: spacing.lg,
-  },
-  greetingSection: {
-    marginBottom: spacing['2xl'],
-  },
-  greetingRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.md,
-  },
-  signOutBtn: {
-    padding: spacing.sm,
-    borderRadius: borderRadius.md,
+    paddingBottom: spacing['3xl'],
   },
   greeting: {
     fontFamily: typography.fontFamily.bold,
     fontSize: typography.size['2xl'],
     color: colors.textPrimary,
-    marginBottom: spacing.xs,
   },
   subtitle: {
     fontFamily: typography.fontFamily.regular,
     fontSize: typography.size.md,
     color: colors.textSecondary,
+    marginTop: spacing.xs,
+    marginBottom: spacing.xl,
+  },
+  composer: {
+    marginBottom: spacing.lg,
+  },
+  composerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  composerLabel: {
+    fontFamily: typography.fontFamily.medium,
+    fontSize: typography.size.sm,
+    color: colors.textSecondary,
+  },
+  composerInput: {
+    fontFamily: typography.fontFamily.regular,
+    fontSize: typography.size.md,
+    color: colors.textPrimary,
+    minHeight: 64,
+    paddingTop: 0,
+    paddingBottom: spacing.sm,
+    textAlignVertical: 'top',
+  },
+  composerActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    justifyContent: 'flex-end',
+  },
+  primaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.md,
+  },
+  primaryLabel: {
+    color: colors.textOnPrimary,
+    fontFamily: typography.fontFamily.semiBold,
+    fontSize: typography.size.sm,
+  },
+  secondaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.md,
+  },
+  secondaryLabel: {
+    color: colors.textPrimary,
+    fontFamily: typography.fontFamily.medium,
+    fontSize: typography.size.sm,
+  },
+  pressed: { opacity: 0.7 },
+  disabled: { opacity: 0.4 },
+  agentReply: {
+    marginTop: spacing.md,
+    backgroundColor: colors.primaryLight,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+  },
+  agentReplyLabel: {
+    fontFamily: typography.fontFamily.semiBold,
+    fontSize: typography.size.xs,
+    color: colors.primary,
+    marginBottom: spacing.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  agentReplyText: {
+    fontFamily: typography.fontFamily.regular,
+    fontSize: typography.size.md,
+    color: colors.textPrimary,
     lineHeight: typography.size.md * typography.lineHeight.relaxed,
   },
-  alertBanner: {
-    backgroundColor: colors.alert,
+  agentError: {
+    marginTop: spacing.md,
+    backgroundColor: colors.alertLight,
+    padding: spacing.md,
     borderRadius: borderRadius.md,
-    padding: spacing.lg,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: spacing.xl,
-    gap: spacing.md,
   },
-  alertContent: {
-    flex: 1,
-  },
-  alertTitle: {
-    fontFamily: typography.fontFamily.semiBold,
-    fontSize: typography.size.md,
-    color: colors.textOnPrimary,
-    marginBottom: spacing.xs,
-  },
-  alertSummary: {
+  agentErrorText: {
     fontFamily: typography.fontFamily.regular,
     fontSize: typography.size.sm,
-    color: 'rgba(255,255,255,0.9)',
+    color: colors.alert,
+  },
+  nudgeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primary,
+    ...shadows.sm,
+  },
+  nudgeTitle: {
+    fontFamily: typography.fontFamily.semiBold,
+    fontSize: typography.size.md,
+    color: colors.textPrimary,
+    marginBottom: spacing.xs,
+  },
+  nudgeBody: {
+    fontFamily: typography.fontFamily.regular,
+    fontSize: typography.size.sm,
+    color: colors.textSecondary,
     lineHeight: typography.size.sm * typography.lineHeight.relaxed,
   },
-  statusCard: {
-    marginBottom: spacing.xl,
+  section: {
+    marginTop: spacing.md,
   },
   sectionTitle: {
     fontFamily: typography.fontFamily.semiBold,
-    fontSize: typography.size.lg,
+    fontSize: typography.size.md,
     color: colors.textPrimary,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
-  statusGrid: {
+  empty: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.xl,
+    alignItems: 'center',
+    ...shadows.sm,
+  },
+  emptyText: {
+    fontFamily: typography.fontFamily.regular,
+    fontSize: typography.size.sm,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: typography.size.sm * typography.lineHeight.relaxed,
+  },
+  eventRow: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
     gap: spacing.md,
-  },
-  statusItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statusIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
     marginBottom: spacing.sm,
+    ...shadows.sm,
   },
-  statusLabel: {
+  eventDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.primary,
+    marginTop: 6,
+  },
+  eventBody: { flex: 1 },
+  eventSummary: {
+    fontFamily: typography.fontFamily.medium,
+    fontSize: typography.size.md,
+    color: colors.textPrimary,
+    marginBottom: spacing.xs,
+  },
+  eventMeta: {
     fontFamily: typography.fontFamily.regular,
     fontSize: typography.size.xs,
     color: colors.textTertiary,
-    marginBottom: spacing.xs,
-    textAlign: 'center',
+    textTransform: 'capitalize',
   },
-  statusValue: {
-    fontFamily: typography.fontFamily.medium,
-    fontSize: typography.size.sm,
-    color: colors.textPrimary,
-    textAlign: 'center',
-  },
-  section: {
-    marginBottom: spacing.xl,
-  },
-  quickLogButton: {
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.md,
-    paddingVertical: spacing.lg,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.xl,
-    gap: spacing.sm,
-    ...shadows.md,
-  },
-  quickLogText: {
-    fontFamily: typography.fontFamily.semiBold,
-    fontSize: typography.size.lg,
-    color: colors.textOnPrimary,
-  },
-  bottomSpacer: {
-    height: spacing['3xl'],
-  },
+  bottomSpacer: { height: spacing['3xl'] },
 })
