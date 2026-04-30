@@ -11,8 +11,8 @@ import {
 } from 'react-native'
 import { Redirect } from 'expo-router'
 import Svg, { Rect, Polygon, Path } from 'react-native-svg'
-import { useAuth } from '../src/contexts/AuthContext'
-import { colors, typography } from '../src/theme'
+import { useAuth } from '../../src/contexts/AuthContext'
+import { colors, typography } from '../../src/theme'
 
 function GoogleLogo() {
   return (
